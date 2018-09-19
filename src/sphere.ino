@@ -8,7 +8,7 @@ Adafruit_MotorShield AFMS = Adafruit_MotorShield();
 Adafruit_StepperMotor *STEPPER = AFMS.getStepper(200, 2);
 const int gear_cog = 799;
 int stp_cnt = 399;
-int yaw_stp;
+double yaw_stp;
 
 // CONTROL BUTTONS
 constexpr auto BTN_PIN_STRT = 13;
@@ -28,15 +28,15 @@ float filterFrequency = 0.4;
 FilterOnePole lowpass_x(LOWPASS, filterFrequency);
 FilterOnePole lowpass_y(LOWPASS, filterFrequency);
 FilterOnePole lowpass_z(LOWPASS, filterFrequency);
-FilterOnePole lowpass_u(LOWPASS, filterFrequency);
 
 float  aclr_x_val, aclr_y_val, aclr_z_val;
 double angle_x, angle_x_val;
 double angle_y, angle_y_val;
-double angle_u;
+double angle_u, length_u;
 
 // Stream
 String stream;
+int factor = 1000;
 
 void setup() {
 
@@ -72,8 +72,8 @@ void accelerometer() {
 	aclr_y_val = lowpass_y.input(aclr_y_val);
 	aclr_z_val = lowpass_z.input(aclr_z_val);
 
-	angle_x = -aclr_y_val / aclr_z_val;         // rotation around x-axis
-	angle_y = aclr_x_val / aclr_z_val;          // rotation around y-axis
+	angle_x = -aclr_y_val / aclr_z_val;         // rotation around x-axis (beta)
+	angle_y = aclr_x_val / aclr_z_val;          // rotation around y-axis (alpha)
 
 	if (angle_x > PI / 2) {
 		angle_x = PI / 2;
@@ -89,8 +89,9 @@ void accelerometer() {
 	}
 
 	if (angle_y != 0) {
-		angle_u = -atan(tan(angle_x) / sin(angle_y)); // psi = yaw angle
+		angle_u = -atan(tan(angle_x) / sin(angle_y));           // yaw angle
 	}
+	length_u = hypot(cos(angle_x)*sin(angle_y), sin(angle_x));  // length of yaw angle
 
 	if (angle_y < 0 && angle_x > 0) {
 		angle_u = angle_u;
@@ -111,10 +112,10 @@ void accelerometer() {
 #pragma endregion
 
 #pragma region serial print
-
-	stream = String('_') + normdata(angle_x, angle_y, angle_u) + String('#');
+	
+	stream = normdata(factor*angle_x, factor*angle_y, factor*angle_u, factor*length_u);
 	Serial.println(stream);
-
+	
 #pragma endregion
 }
 
@@ -130,6 +131,7 @@ void stepper() {
 	}
 
 	yaw_stp = gear_cog / (2 * PI) * angle_u; // yaw angle in steps
+
 	const int stp_tol = 10;
 
 	if (stp_cnt < yaw_stp && yaw_stp - stp_cnt > stp_tol) {
@@ -159,7 +161,7 @@ void stepper() {
 		stp_cnt--;
 		delay(stp_delay);
 	}
-	if (run_forw == false && run_back == false) {
+	if (run_forw == false && run_back == false || run_auto == false) {
 		STEPPER->release();
 	}
 
@@ -168,7 +170,7 @@ void stepper() {
 	}
 }
 
-String normdata(float a, float b, float c) {
-	String ret = String(a) + String(' ') + String(b) + String(' ') + String(c);
+String normdata(float a, float b, float c, float d) {
+	String ret = String('_') + String(a) + String(' ') + String(b) + String(' ') + String(c) + String(' ') + String(d) + String('#');
 	return ret;
 }
