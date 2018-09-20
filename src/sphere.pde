@@ -43,21 +43,21 @@ void visual() {
   }
 
   r = 0.7 * height;
-  r1 = 0.98*r;
-  r2 = map(magni_u, 0, 1, 1, 0.98)*r1;
+  r1 = r*map(magni_u, 0, 1, 1, 0.98);
+  r2 = 0.98*r;
   noStroke();
   fill(0);
-  ellipse(0, 0, r1, r2);
+  ellipse(l, 0, r1, r2);
 
-  r3 = r*map(magni_u, 0, 1, 1, 1.2);
-  r4 = map(magni_u, 0, 1, 1, 0.98)*r3;
-  stroke(0, 100);
-  fill(200, 240);
-  //fill(200);
+  r3 = map(magni_u, 0, 1, 1, 0.98)*r4;
+  r4 = r*map(magni_u, 0, 1, 1, 1.2);
+  //stroke(0, 100);
+  //fill(200, 240);
+  fill(200);
   ellipse(0, 0, r3, r4);
 
   stroke(255);
-  line(0, 0, l, l);
+  line(0, 0, l, 0);
 }
 
 void stream() {
@@ -67,7 +67,7 @@ void stream() {
     angle_x  = portStreamDataVal[0]/factor;
     angle_y  = portStreamDataVal[1]/factor;
     angle_u  = portStreamDataVal[2]/factor;
-    magni_u   = portStreamDataVal[3]/factor;
+    magni_u  = portStreamDataVal[3]/factor;
   }
   println(int(angle_x*180/PI), int(angle_y*180/PI), int(angle_u*180/PI), magni_u);
 }
