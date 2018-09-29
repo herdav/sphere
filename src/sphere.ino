@@ -6,8 +6,8 @@
 // STEPPER MOTOR
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
 Adafruit_StepperMotor *STEPPER = AFMS.getStepper(200, 2);
-const int gear_cog = 799;
-int stp_cnt = 399;
+const int gear_cog = 599;
+int stp_cnt = 299;
 double yaw_stp;
 
 // CONTROL BUTTONS
@@ -46,7 +46,8 @@ void setup() {
 	Serial.begin(9600);
 
 	AFMS.begin();
-	STEPPER->setSpeed(1);
+	TWBR = ((F_CPU / 400000l) - 16) / 2; // Change the i2c clock to 400KHz
+	STEPPER->setSpeed(60);
 }
 
 void loop() {
@@ -91,6 +92,13 @@ void accelerometer() {
 	if (angle_y != 0) {
 		angle_u = -atan(tan(angle_x) / sin(angle_y));           // yaw angle
 	}
+	if (angle_y == 0 && angle_x != 0) {
+		angle_u = PI / 2 + atan(sin(angle_y) / tan(angle_x));
+	}
+	if (angle_y == 0 && angle_x == 0) {
+		angle_u = 0;
+	}
+
 	length_u = hypot(cos(angle_x)*sin(angle_y), sin(angle_x));  // length of yaw angle
 
 	if (angle_y < 0 && angle_x > 0) {
@@ -112,10 +120,10 @@ void accelerometer() {
 #pragma endregion
 
 #pragma region serial print
-	
+
 	stream = normdata(factor*angle_x, factor*angle_y, factor*angle_u, factor*length_u);
 	Serial.println(stream);
-	
+
 #pragma endregion
 }
 
@@ -130,9 +138,9 @@ void stepper() {
 		run_auto = false;
 	}
 
-	yaw_stp = gear_cog / (2 * PI) * angle_u; // yaw angle in steps
+	yaw_stp = gear_cog - gear_cog / (2 * PI) * angle_u; // yaw angle in steps
 
-	const int stp_tol = 10;
+	const int stp_tol = 6;
 
 	if (stp_cnt < yaw_stp && yaw_stp - stp_cnt > stp_tol) {
 		run_forw = true;
@@ -149,17 +157,13 @@ void stepper() {
 		run_back = false;
 	}
 
-	const int stp_delay = 10;
-
 	if (run_auto == true && run_forw == true) {
-		STEPPER->onestep(FORWARD, SINGLE);
+		STEPPER->step(1, FORWARD, MICROSTEP);
 		stp_cnt++;
-		delay(stp_delay);
 	}
 	if (run_auto == true && run_back == true) {
-		STEPPER->onestep(BACKWARD, SINGLE);
+		STEPPER->step(1, BACKWARD, MICROSTEP);
 		stp_cnt--;
-		delay(stp_delay);
 	}
 	if (run_forw == false && run_back == false || run_auto == false) {
 		STEPPER->release();
