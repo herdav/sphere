@@ -9,6 +9,7 @@ Adafruit_StepperMotor *STEPPER = AFMS.getStepper(200, 2);
 const int gear_cog = 599;
 int stp_cnt = 299;
 int stp_yaw, stp_yaw_left, stp_yaw_rght;
+float stp_acnt;
 
 // CONTROL BUTTONS
 constexpr auto BTN_PIN_STRT = 13;
@@ -64,9 +65,9 @@ void accelerometer() {
 	aclr_y = analogRead(ACLR_PIN_Y);
 	aclr_z = analogRead(ACLR_PIN_Z);
 
-	aclr_x_val = 2.0 / 93 * (aclr_x - 197) - 1; // calibrated acceleration x-axis [g]
-	aclr_y_val = 2.0 / 95 * (aclr_y - 197) - 1;	// calibrated acceleration y-axis [g]
-	aclr_z_val = 2.0 / 98 * (aclr_z - 203) - 1;	// calibrated acceleration z-axis [g]
+	aclr_x_val = 2.0 / 93 * (aclr_x - 197) - 1;  // calibrated acceleration x-axis [g]
+	aclr_y_val = 2.0 / 95 * (aclr_y - 197) - 1;  // calibrated acceleration y-axis [g]
+	aclr_z_val = 2.0 / 98 * (aclr_z - 203) - 1;  // calibrated acceleration z-axis [g]
 
 	aclr_x_val = lowpass_x.input(aclr_x_val);   // low pass filter x-axis
 	aclr_y_val = lowpass_y.input(aclr_y_val);   // low pass filter y-axis
@@ -120,7 +121,7 @@ void accelerometer() {
 
 #pragma region serial print
 
-	stream = normdata(fctr*angle_x, fctr*angle_y, fctr*angle_u, fctr*mgni_u, stp_yaw, stp_cnt);
+	stream = normdata(fctr*angle_x, fctr*angle_y, fctr*angle_u, fctr*mgni_u, fctr*stp_acnt, 0);
 	Serial.println(stream);
 
 #pragma endregion
@@ -142,10 +143,12 @@ void stepper() {
 	if (stp_yaw > stp_cnt) {                             // calculate steps in both directions
 		stp_yaw_left = stp_yaw - stp_cnt;
 		stp_yaw_rght = stp_cnt + gear_cog - stp_yaw;
+		stp_acnt = float(stp_cnt) / float(stp_yaw);
 	}
 	if (stp_yaw < stp_cnt) {
 		stp_yaw_left = gear_cog - stp_cnt + stp_yaw;
 		stp_yaw_rght = stp_cnt - stp_yaw;
+		stp_acnt = float(stp_yaw) / float(stp_cnt);
 	}
 
 	const int stp_tol = 10;                                       // tolrance measurement fluctuations
@@ -177,15 +180,15 @@ void stepper() {
 		STEPPER->release();
 	}
 
-	if (stp_cnt == gear_cog + 1) {  // rotation over zero
+	if (stp_cnt == gear_cog) {  // rotation over zero
 		stp_cnt = 0;
 	}
 	if (stp_cnt == -1) {
-		stp_cnt = gear_cog;
+		stp_cnt = gear_cog-1;
 	}
 }
 
-String normdata(float a, float b, float c, float d, int e, int f) {
+String normdata(float a, float b, float c, float d, float e, float f) {
 	String ret = String('!') + String(a) + String(' ') + String(b) + String(' ') + String(c) + String(' ') + String(d) + String(' ') + String(e) + String(' ') + String(f) + String('#');
 	return ret;
 }
