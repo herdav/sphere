@@ -8,7 +8,7 @@ Adafruit_MotorShield AFMS = Adafruit_MotorShield();
 Adafruit_StepperMotor *STEPPER = AFMS.getStepper(200, 2);
 const int gear_cog = 599;
 int stp_cnt = 299;
-double yaw_stp;
+int stp_yaw, stp_yaw_left, stp_yaw_rght;
 
 // CONTROL BUTTONS
 constexpr auto BTN_PIN_STRT = 13;
@@ -32,26 +32,24 @@ FilterOnePole lowpass_z(LOWPASS, filterFrequency);
 float  aclr_x_val, aclr_y_val, aclr_z_val;
 double angle_x, angle_x_val;
 double angle_y, angle_y_val;
-double angle_u, length_u;
+double angle_u, mgni_u;
 
 // Stream
 String stream;
-int factor = 1000;
+int fctr = 1000;
 
 void setup() {
-
 	pinMode(BTN_PIN_STRT, INPUT);
 	pinMode(BTN_PIN_STOP, INPUT);
 
 	Serial.begin(9600);
 
 	AFMS.begin();
-	TWBR = ((F_CPU / 400000l) - 16) / 2; // Change the i2c clock to 400KHz
+	TWBR = ((F_CPU / 400000l) - 16) / 2; // change the i2c clock to 400KHz
 	STEPPER->setSpeed(60);
 }
 
 void loop() {
-
 	accelerometer();
 	stepper();
 }
@@ -59,6 +57,7 @@ void loop() {
 void accelerometer() {
 
 #pragma region acceleration and yaw angle
+
 	// view from center in direction axis, rotation counterclockwise = positive angle
 
 	aclr_x = analogRead(ACLR_PIN_X);
@@ -69,9 +68,9 @@ void accelerometer() {
 	aclr_y_val = 2.0 / 95 * (aclr_y - 197) - 1;	// calibrated acceleration y-axis [g]
 	aclr_z_val = 2.0 / 98 * (aclr_z - 203) - 1;	// calibrated acceleration z-axis [g]
 
-	aclr_x_val = lowpass_x.input(aclr_x_val);   // low pass filter
-	aclr_y_val = lowpass_y.input(aclr_y_val);
-	aclr_z_val = lowpass_z.input(aclr_z_val);
+	aclr_x_val = lowpass_x.input(aclr_x_val);   // low pass filter x-axis
+	aclr_y_val = lowpass_y.input(aclr_y_val);	// low pass filter y-axis
+	aclr_z_val = lowpass_z.input(aclr_z_val);	// low pass filter z-axis
 
 	angle_x = -aclr_y_val / aclr_z_val;         // rotation around x-axis (beta)
 	angle_y = aclr_x_val / aclr_z_val;          // rotation around y-axis (alpha)
@@ -90,18 +89,18 @@ void accelerometer() {
 	}
 
 	if (angle_y != 0) {
-		angle_u = -atan(tan(angle_x) / sin(angle_y));           // yaw angle
+		angle_u = -atan(tan(angle_x) / sin(angle_y));           // yaw-angle [y != 0]
 	}
 	if (angle_y == 0 && angle_x != 0) {
-		angle_u = PI / 2 + atan(sin(angle_y) / tan(angle_x));
+		angle_u = PI / 2 + atan(sin(angle_y) / tan(angle_x));	// yaw-angle [y == 0]
 	}
 	if (angle_y == 0 && angle_x == 0) {
-		angle_u = 0;
+		angle_u = 0;											// yaw-angle [x == 0 && y == 0]
 	}
 
-	length_u = hypot(cos(angle_x)*sin(angle_y), sin(angle_x));  // length of yaw angle
+	mgni_u = hypot(cos(angle_x)*sin(angle_y), sin(angle_x));    // magnitude of yaw-angle
 
-	if (angle_y < 0 && angle_x > 0) {
+	if (angle_y < 0 && angle_x > 0) {							// determine yaw-angle between 0 and 2PI
 		angle_u = angle_u;
 	}
 	if (angle_y > 0 && angle_x > 0) {
@@ -121,15 +120,15 @@ void accelerometer() {
 
 #pragma region serial print
 
-	stream = normdata(factor*angle_x, factor*angle_y, factor*angle_u, factor*length_u);
+	stream = normdata(fctr*angle_x, fctr*angle_y, fctr*angle_u, fctr*mgni_u, stp_yaw, stp_cnt);
 	Serial.println(stream);
 
 #pragma endregion
 }
 
 void stepper() {
-	run_strt_btn = digitalRead(BTN_PIN_STRT);
-	run_stop_btn = digitalRead(BTN_PIN_STOP);
+	run_strt_btn = digitalRead(BTN_PIN_STRT);						// start taster
+	run_stop_btn = digitalRead(BTN_PIN_STOP);						// stop taster
 
 	if (run_strt_btn == true && run_stop_btn == false && run_auto == false) {
 		run_auto = true;
@@ -138,18 +137,27 @@ void stepper() {
 		run_auto = false;
 	}
 
-	yaw_stp = gear_cog - gear_cog / (2 * PI) * angle_u; // yaw angle in steps
+	stp_yaw = gear_cog - gear_cog / (2 * PI) * angle_u;				// yaw-angle in steps
 
-	const int stp_tol = 6;
+	if (stp_yaw > stp_cnt) {										// calculate steps in both directions
+		stp_yaw_left = stp_yaw - stp_cnt;
+		stp_yaw_rght = stp_cnt + gear_cog - stp_yaw;
+	}
+	if (stp_yaw < stp_cnt) {
+		stp_yaw_left = gear_cog - stp_cnt + stp_yaw;
+		stp_yaw_rght = stp_cnt - stp_yaw;
+	}
 
-	if (stp_cnt < yaw_stp && yaw_stp - stp_cnt > stp_tol) {
+	const int stp_tol = 10;										    // tolrance measurement fluctuations
+
+	if (stp_yaw_left < stp_yaw_rght && stp_yaw_left > stp_tol) {	// define direction of rotation according to least steps
 		run_forw = true;
 		run_back = false;
 	}
 	else {
 		run_forw = false;
 	}
-	if (stp_cnt > yaw_stp && stp_cnt - yaw_stp > stp_tol) {
+	if (stp_yaw_left > stp_yaw_rght && stp_yaw_rght > stp_tol) {
 		run_back = true;
 		run_forw = false;
 	}
@@ -169,12 +177,15 @@ void stepper() {
 		STEPPER->release();
 	}
 
-	if (stp_cnt == gear_cog || stp_cnt == -gear_cog) {
+	if (stp_cnt == gear_cog + 1) {	// rotation over zero
 		stp_cnt = 0;
+	}
+	if (stp_cnt == -1) {
+		stp_cnt = gear_cog;
 	}
 }
 
-String normdata(float a, float b, float c, float d) {
-	String ret = String('_') + String(a) + String(' ') + String(b) + String(' ') + String(c) + String(' ') + String(d) + String('#');
+String normdata(float a, float b, float c, float d, int e, int f) {
+	String ret = String('!') + String(a) + String(' ') + String(b) + String(' ') + String(c) + String(' ') + String(d) + String(' ') + String(e) + String(' ') + String(f) + String('#');
 	return ret;
 }
