@@ -69,8 +69,8 @@ void accelerometer() {
 	aclr_z_val = 2.0 / 98 * (aclr_z - 203) - 1;	// calibrated acceleration z-axis [g]
 
 	aclr_x_val = lowpass_x.input(aclr_x_val);   // low pass filter x-axis
-	aclr_y_val = lowpass_y.input(aclr_y_val);	// low pass filter y-axis
-	aclr_z_val = lowpass_z.input(aclr_z_val);	// low pass filter z-axis
+	aclr_y_val = lowpass_y.input(aclr_y_val);   // low pass filter y-axis
+	aclr_z_val = lowpass_z.input(aclr_z_val);   // low pass filter z-axis
 
 	angle_x = -aclr_y_val / aclr_z_val;         // rotation around x-axis (beta)
 	angle_y = aclr_x_val / aclr_z_val;          // rotation around y-axis (alpha)
@@ -92,15 +92,15 @@ void accelerometer() {
 		angle_u = -atan(tan(angle_x) / sin(angle_y));           // yaw-angle [y != 0]
 	}
 	if (angle_y == 0 && angle_x != 0) {
-		angle_u = PI / 2 + atan(sin(angle_y) / tan(angle_x));	// yaw-angle [y == 0]
+		angle_u = PI / 2 + atan(sin(angle_y) / tan(angle_x));   // yaw-angle [y == 0]
 	}
 	if (angle_y == 0 && angle_x == 0) {
-		angle_u = 0;											// yaw-angle [x == 0 && y == 0]
+		angle_u = 0;                                            // yaw-angle [x == 0 && y == 0]
 	}
 
 	mgni_u = hypot(cos(angle_x)*sin(angle_y), sin(angle_x));    // magnitude of yaw-angle
 
-	if (angle_y < 0 && angle_x > 0) {							// determine yaw-angle between 0 and 2PI
+	if (angle_y < 0 && angle_x > 0) {                           // determine yaw-angle between 0 and 2PI
 		angle_u = angle_u;
 	}
 	if (angle_y > 0 && angle_x > 0) {
@@ -127,8 +127,8 @@ void accelerometer() {
 }
 
 void stepper() {
-	run_strt_btn = digitalRead(BTN_PIN_STRT);						// start taster
-	run_stop_btn = digitalRead(BTN_PIN_STOP);						// stop taster
+	run_strt_btn = digitalRead(BTN_PIN_STRT);  // start taster
+	run_stop_btn = digitalRead(BTN_PIN_STOP);  // stop taster
 
 	if (run_strt_btn == true && run_stop_btn == false && run_auto == false) {
 		run_auto = true;
@@ -137,9 +137,9 @@ void stepper() {
 		run_auto = false;
 	}
 
-	stp_yaw = gear_cog - gear_cog / (2 * PI) * angle_u;				// yaw-angle in steps
+	stp_yaw = gear_cog - gear_cog / (2 * PI) * angle_u;  // yaw-angle in steps
 
-	if (stp_yaw > stp_cnt) {										// calculate steps in both directions
+	if (stp_yaw > stp_cnt) {                             // calculate steps in both directions
 		stp_yaw_left = stp_yaw - stp_cnt;
 		stp_yaw_rght = stp_cnt + gear_cog - stp_yaw;
 	}
@@ -148,9 +148,9 @@ void stepper() {
 		stp_yaw_rght = stp_cnt - stp_yaw;
 	}
 
-	const int stp_tol = 10;										    // tolrance measurement fluctuations
+	const int stp_tol = 10;                                       // tolrance measurement fluctuations
 
-	if (stp_yaw_left < stp_yaw_rght && stp_yaw_left > stp_tol) {	// define direction of rotation according to least steps
+	if (stp_yaw_left < stp_yaw_rght && stp_yaw_left > stp_tol) {  // define direction of rotation according to least steps
 		run_forw = true;
 		run_back = false;
 	}
@@ -177,7 +177,7 @@ void stepper() {
 		STEPPER->release();
 	}
 
-	if (stp_cnt == gear_cog + 1) {	// rotation over zero
+	if (stp_cnt == gear_cog + 1) {  // rotation over zero
 		stp_cnt = 0;
 	}
 	if (stp_cnt == -1) {
