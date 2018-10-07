@@ -1,3 +1,5 @@
+// Sphere (Concept), David Herren, 2018
+
 #include <math.h>
 #include <Wire.h>
 #include <Adafruit_MotorShield.h>
@@ -7,20 +9,28 @@ Adafruit_MotorShield AFMS = Adafruit_MotorShield();
 
 // STEPPER MOTOR
 Adafruit_StepperMotor *STEPPER = AFMS.getStepper(200, 2);
-const int gear_cog = 600;
-int stp_cnt = 130;
+int stp_cnt = 0;
+int stp_n_fast = 4;
+int stp_n_slow = 1;
+int stp_speed = 40;
+int stp_tol = 6;
+int stp_yaw_limt = 30;
+int gear_cog = 600;
 int stp_yaw, stp_yaw_left, stp_yaw_rght;
 
 // FAN DC MOTOR
 Adafruit_DCMotor *FAN = AFMS.getMotor(1);
+int fan_speed = 255;
 
 // CONTROL BUTTONS
 constexpr auto BTN_PIN_STRT = 13;
 constexpr auto BTN_PIN_STOP = 12;
 bool run_strt_btn, run_stop_btn;
 bool run_auto = false;
-bool run_forw = false;
-bool run_back = false;
+bool run_forw_fast = false;
+bool run_back_fast = false;
+bool run_forw_slow = false;
+bool run_back_slow = false;
 
 // ACCELERATION SENSOR
 const int ACLR_PIN_X = A3;
@@ -38,20 +48,18 @@ double angle_x, angle_x_val;
 double angle_y, angle_y_val;
 double angle_u, mgni_u;
 
-// STREAM
+// Stream
 String stream;
 int fctr = 1000;
 
 void setup() {
   pinMode(BTN_PIN_STRT, INPUT);
   pinMode(BTN_PIN_STOP, INPUT);
-
   Serial.begin(9600);
-
   AFMS.begin();
   TWBR = ((F_CPU / 400000l) - 16) / 2; // change the i2c clock to 400KHz
-  STEPPER->setSpeed(60);
-  FAN->setSpeed(255);
+  STEPPER->setSpeed(stp_speed);
+  FAN->setSpeed(fan_speed);
   FAN->run(RELEASE);
 }
 
@@ -72,6 +80,15 @@ void control() {
   }
   if (run_strt_btn == false && run_stop_btn == true && run_auto == true) {
     run_auto = false;
+  }
+}
+
+void fan() {
+  if (run_auto == true) {
+    FAN->run(FORWARD);
+  }
+  else {
+    FAN->run(RELEASE);
   }
 }
 
@@ -135,15 +152,6 @@ void accelerometer() {
   }
 }
 
-void fan() {
-  if (run_auto == true) {
-    FAN->run(FORWARD);
-  }
-  else {
-    FAN->run(RELEASE);
-  }
-}
-
 void stepper() {
   stp_yaw = gear_cog - gear_cog / (2 * PI) * angle_u;  // yaw-angle in steps
 
@@ -156,40 +164,72 @@ void stepper() {
     stp_yaw_rght = stp_cnt - stp_yaw;
   }
 
-  const int stp_tol = 6;  // tolrance measurement fluctuations
-
-  if (stp_yaw_left < stp_yaw_rght && stp_yaw_left > stp_tol) {  // define direction of rotation according to least steps
-    run_forw = true;
-    run_back = false;
+  if (stp_yaw_left < stp_yaw_rght && stp_yaw_left > stp_tol) {  // define direction and speed of rotation according to least steps;
+    if (stp_yaw_left >= stp_yaw_limt) {
+      run_forw_fast = true;
+    }
+    else {
+      run_forw_fast = false;
+    }
+    if (stp_yaw_left < stp_yaw_limt) {
+      run_forw_slow = true;
+    }
+    else {
+      run_forw_slow = false;
+    }
   }
   else {
-    run_forw = false;
+    run_forw_fast = false;
+    run_forw_slow = false;
   }
+
   if (stp_yaw_left > stp_yaw_rght && stp_yaw_rght > stp_tol) {
-    run_back = true;
-    run_forw = false;
+    if (stp_yaw_rght >= stp_yaw_limt) {
+      run_back_fast = true;
+    }
+    else {
+      run_back_fast = false;
+    }
+    if (stp_yaw_rght < stp_yaw_limt) {
+      run_back_slow = true;
+    }
+    else {
+      run_back_slow = false;
+    }
   }
   else {
-    run_back = false;
+    run_back_fast = false;
+    run_back_slow = false;
   }
 
-  if (run_auto == true && run_forw == true) {
-    STEPPER->step(1, FORWARD, MICROSTEP);
-    stp_cnt++;
+  if (run_auto == true) {
+    if (run_forw_fast == true) {
+      STEPPER->step(stp_n_fast, FORWARD, SINGLE);
+      stp_cnt += stp_n_fast;
+    }
+    if (run_forw_slow == true) {
+      STEPPER->step(stp_n_slow, FORWARD, MICROSTEP);
+      stp_cnt += stp_n_slow;
+    }
+    if (run_back_fast == true) {
+      STEPPER->step(stp_n_fast, BACKWARD, SINGLE);
+      stp_cnt -= stp_n_fast;
+    }
+    if (run_back_slow == true) {
+      STEPPER->step(stp_n_slow, BACKWARD, MICROSTEP);
+      stp_cnt -= stp_n_slow;
+    }
   }
-  if (run_auto == true && run_back == true) {
-    STEPPER->step(1, BACKWARD, MICROSTEP);
-    stp_cnt--;
-  }
-  if (run_forw == false && run_back == false || run_auto == false) {
+
+  if (run_forw_fast == false && run_back_fast == false && run_forw_slow == false && run_back_slow == false || run_auto == false) {
     STEPPER->release();
   }
 
-  if (stp_cnt == gear_cog) {  // rotation over zero
-    stp_cnt = 0;
+  if (stp_cnt >= gear_cog) {  // rotation over zero
+    stp_cnt = stp_cnt - gear_cog;
   }
-  if (stp_cnt == -1) {
-    stp_cnt = gear_cog - 1;
+  if (stp_cnt < 0) {
+    stp_cnt = gear_cog + stp_cnt;
   }
 }
 
