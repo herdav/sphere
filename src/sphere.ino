@@ -7,22 +7,26 @@
 
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
 
-// STEPPER MOTOR
+// GEAR STEPPER MOTOR
 Adafruit_StepperMotor *STEPPER = AFMS.getStepper(200, 2);
 int stp_cnt = 0;
-int stp_n_fast = 4;
-int stp_n_slow = 1;
-int stp_speed = 40;
+int stp_steps_fast = 4;
+int stp_steps_slow = 2;
+int stp_speed_slow_set = 20;
+int stp_speed_fast_max = 36;
+int stp_speed_fast_min = 18;
+int stp_speed_fast_set = 0;
+int stp_speed_fast_slow = 30;
 int stp_tol = 6;
-int stp_yaw_limt = 30;
-int gear_cog = 600;
 int stp_yaw, stp_yaw_left, stp_yaw_rght;
+float stp_speed_fast_incr;
+int gear_cog = 600;
 
 // FAN DC MOTOR
 Adafruit_DCMotor *FAN = AFMS.getMotor(1);
 int fan_speed = 255;
 
-// CONTROL BUTTONS
+// CONTROL ELEMENTS
 constexpr auto BTN_PIN_STRT = 13;
 constexpr auto BTN_PIN_STOP = 12;
 bool run_strt_btn, run_stop_btn;
@@ -31,6 +35,9 @@ bool run_forw_fast = false;
 bool run_back_fast = false;
 bool run_forw_slow = false;
 bool run_back_slow = false;
+
+const int POTI_PIN = A0;
+int poti;
 
 // ACCELERATION SENSOR
 const int ACLR_PIN_X = A3;
@@ -48,7 +55,7 @@ double angle_x, angle_x_val;
 double angle_y, angle_y_val;
 double angle_u, mgni_u;
 
-// Stream
+// STREAM
 String stream;
 int fctr = 1000;
 
@@ -58,9 +65,10 @@ void setup() {
   Serial.begin(9600);
   AFMS.begin();
   TWBR = ((F_CPU / 400000l) - 16) / 2; // change the i2c clock to 400KHz
-  STEPPER->setSpeed(stp_speed);
   FAN->setSpeed(fan_speed);
   FAN->run(RELEASE);
+  stp_speed_fast_incr = float(stp_speed_fast_max - stp_speed_fast_min) / float(gear_cog / 2 - stp_speed_fast_slow); // calculate increase stepper 
+  delay(500);
 }
 
 void loop() {
@@ -81,6 +89,8 @@ void control() {
   if (run_strt_btn == false && run_stop_btn == true && run_auto == true) {
     run_auto = false;
   }
+
+  poti = analogRead(POTI_PIN); // potentiometer
 }
 
 void fan() {
@@ -153,9 +163,9 @@ void accelerometer() {
 }
 
 void stepper() {
-  stp_yaw = gear_cog - gear_cog / (2 * PI) * angle_u;  // yaw-angle in steps
+  stp_yaw = gear_cog - gear_cog / (2 * PI) * angle_u; // yaw-angle in steps
 
-  if (stp_yaw > stp_cnt) {  // calculate steps in both directions
+  if (stp_yaw > stp_cnt) {                            // calculate steps in both directions
     stp_yaw_left = stp_yaw - stp_cnt;
     stp_yaw_rght = stp_cnt + gear_cog - stp_yaw;
   }
@@ -164,14 +174,15 @@ void stepper() {
     stp_yaw_rght = stp_cnt - stp_yaw;
   }
 
-  if (stp_yaw_left < stp_yaw_rght && stp_yaw_left > stp_tol) {  // define direction and speed of rotation according to least steps;
-    if (stp_yaw_left >= stp_yaw_limt) {
+  if (stp_yaw_left < stp_yaw_rght && stp_yaw_left > stp_tol) { // define direction and speed of rotation according to least steps;
+    if (stp_yaw_left >= stp_speed_fast_slow) {
+      stp_speed_fast_set = stp_speed(stp_yaw_left);
       run_forw_fast = true;
     }
     else {
       run_forw_fast = false;
     }
-    if (stp_yaw_left < stp_yaw_limt) {
+    if (stp_yaw_left < stp_speed_fast_slow) {
       run_forw_slow = true;
     }
     else {
@@ -184,13 +195,14 @@ void stepper() {
   }
 
   if (stp_yaw_left > stp_yaw_rght && stp_yaw_rght > stp_tol) {
-    if (stp_yaw_rght >= stp_yaw_limt) {
+    if (stp_yaw_rght >= stp_speed_fast_slow) {
+      stp_speed_fast_set = stp_speed(stp_yaw_rght);
       run_back_fast = true;
     }
     else {
       run_back_fast = false;
     }
-    if (stp_yaw_rght < stp_yaw_limt) {
+    if (stp_yaw_rght < stp_speed_fast_slow) {
       run_back_slow = true;
     }
     else {
@@ -204,20 +216,24 @@ void stepper() {
 
   if (run_auto == true) {
     if (run_forw_fast == true) {
-      STEPPER->step(stp_n_fast, FORWARD, SINGLE);
-      stp_cnt += stp_n_fast;
+      STEPPER->setSpeed(stp_speed_fast_set);
+      STEPPER->step(stp_steps_fast, FORWARD, SINGLE);
+      stp_cnt += stp_steps_fast;
     }
     if (run_forw_slow == true) {
-      STEPPER->step(stp_n_slow, FORWARD, MICROSTEP);
-      stp_cnt += stp_n_slow;
+      STEPPER->setSpeed(stp_speed_slow_set);
+      STEPPER->step(stp_steps_slow, FORWARD, MICROSTEP);
+      stp_cnt += stp_steps_slow;
     }
     if (run_back_fast == true) {
-      STEPPER->step(stp_n_fast, BACKWARD, SINGLE);
-      stp_cnt -= stp_n_fast;
+      STEPPER->setSpeed(stp_speed_fast_set);
+      STEPPER->step(stp_steps_fast, BACKWARD, SINGLE);
+      stp_cnt -= stp_steps_fast;
     }
     if (run_back_slow == true) {
-      STEPPER->step(stp_n_slow, BACKWARD, MICROSTEP);
-      stp_cnt -= stp_n_slow;
+      STEPPER->setSpeed(stp_speed_slow_set);
+      STEPPER->step(stp_steps_slow, BACKWARD, MICROSTEP);
+      stp_cnt -= stp_steps_slow;
     }
   }
 
@@ -234,11 +250,16 @@ void stepper() {
 }
 
 void data() {
-  stream = normdata(fctr*angle_x, fctr*angle_y, fctr*angle_u, fctr*mgni_u, stp_yaw, stp_cnt);
+  stream = normdata(fctr*angle_x, fctr*angle_y, fctr*angle_u, fctr*mgni_u, stp_yaw, stp_cnt, stp_speed_fast_set, poti);
   Serial.println(stream);
 }
 
-String normdata(float a, float b, float c, float d, int e, int f) {
-  String ret = String('!') + String(a) + String(' ') + String(b) + String(' ') + String(c) + String(' ') + String(d) + String(' ') + String(e) + String(' ') + String(f) + String('#');
+String normdata(float a, float b, float c, float d, int e, int f, int g, int h) {
+  String ret = String('!') + String(a) + String(' ') + String(b) + String(' ') + String(c) + String(' ') + String(d) + String(' ') + String(e) + String(' ') + String(f) + String(' ') + String(g) + String(' ') + String(h) + String('#');
+  return ret;
+}
+
+int stp_speed(int dist) {
+  int ret = int(stp_speed_fast_incr * dist) + stp_speed_fast_min;
   return ret;
 }
