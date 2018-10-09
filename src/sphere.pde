@@ -17,6 +17,9 @@ color gray = color(150);
 color brgt = color(255);
 int textsize = 13;
 
+// VISUAL
+float l, r, r1, r2, r3, r4, n1;
+
 void setup() {
   size(1600, 800);
   //fullScreen();
@@ -36,13 +39,28 @@ void setup() {
 
 void draw() {
   stream();
-  indicator();
+
+  switch (key) {
+    case '1':
+    indicator();
+    break;
+    case '2':
+    visual();
+    break;
+    default :
+    background(0);
+    textAlign(LEFT, TOP);
+    fill(gray);
+    textSize(13);
+    text("Press [1] or [2]", 10, textsize);
+    break;	
+  }
 }
 
 void indicator() {
   background(0);
   textAlign(LEFT, TOP);
-
+  fill(gray);
   text("Sphere (Concept), David Herren, 2018", 10, textsize);
   text(float(int(float(frameCount)/millis()*10000))/10 + "fps", 10, textsize*2.5);
   text(float(int(10*rpm))/10 + "rpm", 10, textsize*4);
@@ -68,6 +86,31 @@ void indicator() {
   yaw.magnitude(magni_u);
   yaw.path(color(0, 255, 0, 200));
   yaw.info("yaw-angle");
+}
+
+void visual() {
+  translate(width/2, height/2);
+  rotate(angle_rot);
+
+  l = height/10 * magni_u;
+  n1 = 0.8;
+
+  r = 0.6 * height;
+  r1 = r*map(magni_u, 0, 1, 1, n1);
+  r2 = n1*r;
+
+  r4 = r*map(magni_u, 0, 1, 1, 1.2);
+  r3 = map(magni_u, 0, 1, 1, n1)*r4;
+
+  background(200);
+  noStroke();
+  fill(0);
+  ellipse(l, 0, r1, r2);
+  stroke(0, 100);
+  fill(200, 240);
+  stroke(240);
+  line(0, 0, l, 0);
+  ellipse(0, 0, r3, r4);
 }
 
 void stream() {
