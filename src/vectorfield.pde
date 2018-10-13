@@ -3,17 +3,17 @@
 Vectorfield[] vector;
 PVector pos = new PVector();
 
-Target target;
+Target trgt;
 ArrayList < Target > targets;
 
 float d, r;
 int n = 200;
 
-color gray = color(180);
-color darkgray = color(50);
+color gray = color(200);
+color darkgray = color(100);
 
 void setup() {
-  size(800, 800, P2D);
+  size(600, 600, P2D);
   d = width / n;
   r = d / 2;
 
@@ -32,8 +32,8 @@ void setup() {
 
 void draw() {
   background(0);
-  targets();
   field();
+  targets();
   data();
   //pictures();
 }
@@ -42,6 +42,17 @@ void targets() {
   targets.get(0).display(mouseX, mouseY);
   for (Target target: targets) {
     target.display();
+  }
+}
+
+void mouseClicked() {
+  if (mouseButton == LEFT) {
+    targets.add(new Target(mouseX, mouseY));
+  }
+  if (mouseButton == RIGHT && targets.size() > 1) {
+    for (int i = targets.size() - 1; i > 0; i--) {
+      targets.remove(i);
+    }
   }
 }
 
@@ -59,17 +70,6 @@ void field() {
   noStroke();
 }
 
-void mouseClicked() {
-  if (mouseButton == LEFT) {
-    targets.add(new Target(mouseX, mouseY));
-  }
-  if (mouseButton == RIGHT) {
-    if (targets.size() > 1) {
-      targets.remove(targets.size() - 1);
-    }
-  }
-}
-
 void data() {
   noStroke();
   fill(255);
@@ -77,7 +77,8 @@ void data() {
   rect(0, 0, width, 19);
   fill(0);
   textAlign(LEFT, TOP);
-  text(float(int(float(frameCount) / millis() * 10000)) / 10 + " fps  //  " + n * n + "  Vectorfield  //  David Herren  //  2018", 3, 3);
+  text(float(int(float(frameCount) / millis() * 10000)) / 10 + " fps  //  " + n * n + " vectors  //  " +
+    targets.size() + " targets  //  David Herren  //  2018", 3, 3);
 }
 
 void pictures() {
@@ -114,16 +115,20 @@ class Vectorfield {
   PVector offset = new PVector();
   PVector result = new PVector();
 
-  float magnitude;
+  float magnitude, maxDist, dist;
 
   Vectorfield(PVector pos) {
     orgin.x = pos.x;
     orgin.y = pos.y;
+
+    maxDist = sqrt(2 * sq((n - 1) * d));
   }
 
   void target(PVector target) {
+    dist = orgin.dist(target);
+    dist = r - (r / maxDist) * dist;
     direct = PVector.sub(target, orgin);
-    direct.setMag(r);
+    direct = direct.setMag(dist);
     direct.add(orgin);
   }
 
