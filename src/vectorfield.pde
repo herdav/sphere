@@ -3,7 +3,8 @@
 Vectorfield[] vector;
 PVector pos_segment_vectorfield = new PVector();
 float d_segment_vectorfield, r_segment_vectorfield, maxDist_vectorfield;
-int nx_segment_vectorfield = 20;
+float delay_segment_vectorfield = 0.03;
+int nx_segment_vectorfield = 150;
 int ny_segment_vectorfield = nx_segment_vectorfield;
 int n_segment_vectorfield;
 
@@ -15,25 +16,25 @@ ArrayList < Particle > particles;
 
 int count_particles;
 int birthrate_particles = 1;
-int streams_particles = 100;
-int lifespan_particles = 50;
-float speed_particles = 20;
-int detectionfactor_particles = 2;
+int streams_particles = 200;
+int lifespan_particles = 100;
+float speed_particles = 18;
+int lx_particles, ly_particles, border_particles;
 
 color gray = color(180);
 color darkgray = color(90);
 
 void setup() {
   size(900, 900, P2D);
+  //blendMode(ADD);
+
+  targets = new ArrayList < Target > ();
+  targets.add(new Target(0, 0));
 
   d_segment_vectorfield = width / nx_segment_vectorfield;
   r_segment_vectorfield = d_segment_vectorfield / 2;
   n_segment_vectorfield = nx_segment_vectorfield * ny_segment_vectorfield;
   maxDist_vectorfield = sqrt(2 * sq((nx_segment_vectorfield - 1) * d_segment_vectorfield));
-
-  targets = new ArrayList < Target > ();
-  targets.add(new Target(0, 0));
-
   vector = new Vectorfield[n_segment_vectorfield];
   for (int i = 0; i < ny_segment_vectorfield; i++) {
     for (int j = 0; j < nx_segment_vectorfield; j++) {
@@ -44,6 +45,9 @@ void setup() {
   }
 
   particles = new ArrayList < Particle > ();
+  border_particles = int(d_segment_vectorfield);
+  lx_particles = (width - 2 * border_particles) / streams_particles;
+  ly_particles = (height - 2 * border_particles) / streams_particles;
 }
 
 void draw() {
@@ -67,29 +71,29 @@ void particles() {
   if (count_particles == birthrate_particles) {
     count_particles = 0;
     for (int i = 0; i <= streams_particles; i++) {
-      particles.add(new Particle(0, height / streams_particles * i, lifespan_particles));
+      particles.add(new Particle(border_particles, border_particles + ly_particles * i, lifespan_particles, color(255, 0, 0))); // left
     }
     for (int i = 0; i <= streams_particles; i++) {
-      particles.add(new Particle(width / 20 * i, height, lifespan_particles));
+      particles.add(new Particle(border_particles + lx_particles * i, border_particles, lifespan_particles, color(255, 255, 0))); // top
     }
     for (int i = 0; i <= streams_particles; i++) {
-      particles.add(new Particle(width, height / streams_particles * i, lifespan_particles));
+      particles.add(new Particle(width - border_particles, border_particles + ly_particles * i, lifespan_particles, color(0, 0, 255))); // right
     }
     for (int i = 0; i <= streams_particles; i++) {
-      particles.add(new Particle(width / streams_particles * i, 0, lifespan_particles));
+      particles.add(new Particle(border_particles + lx_particles * i, height - border_particles, lifespan_particles, color(255, 0, 255))); // bottom
     }
   }
 
-  for (Particle particles: particles) {
-    particles.update(detectionfactor_particles);
-    particles.lifespan();
-    particles.display();
-  }
   for (int i = particles.size() - 1; i > 0; i--) {
     Particle part = particles.get(i);
     if (part.lifespan <= 0) {
       particles.remove(i);
     }
+  }
+  for (Particle particles: particles) {
+    particles.update();
+    particles.lifespan();
+    particles.display();
   }
 }
 
@@ -108,7 +112,7 @@ void field() {
   for (int i = 0; i < n_segment_vectorfield; i++) {
     for (int j = targets.size() - 1; j >= 0; j--) {
       vector[i].target(targets.get(j).pos);
-      vector[i].magnitude(0.03);
+      vector[i].magnitude(delay_segment_vectorfield);
     }
     vector[i].colorize(key);
     //vector[i].grid(darkgray);
@@ -268,23 +272,20 @@ class Particle {
 
   float dist;
   int active, lifespan, startlifespan;
-  color c = color(255, 0, 0);
+  color col;
 
-  Particle(float x, float y, int l) {
+  Particle(float x, float y, int l, color c) {
     pos.x = x;
     pos.y = y;
     lifespan = l;
     startlifespan = l;
+    col = c;
   }
 
-  void update(int q) {
-    //active = round(pos.y / n) * n + round(pos.x / n); // detect active vector
-
-    for (int i = 0; i < vector.length; i++) {
-      dist = pos.dist(vector[i].orgin);
-      if (dist <= q * d_segment_vectorfield) {
-        aclr.add(vector[i].force);
-      }
+  void update() {
+    active = int(round(pos.y / d_segment_vectorfield) * ny_segment_vectorfield + round(pos.x / d_segment_vectorfield)); // detect active vector
+    if (active >= 0 && active < vector.length) {
+      aclr.add(vector[active].force);
     }
     force = PVector.add(pos, aclr);
     aclr.setMag(speed_particles);
@@ -293,12 +294,16 @@ class Particle {
 
   void lifespan() {
     lifespan--;
+    if (pos.x <= border_particles || pos.x >= width - border_particles || pos.y <= border_particles || pos.y >= height - border_particles) {
+      lifespan = 0;
+    }
   }
 
   void display() {
     noStroke();
-    fill(255, map(lifespan, startlifespan, 0, 0, 200));
-    //ellipse(pos.x, pos.y, 2, 2);
+    fill(255, map(lifespan, startlifespan, 0, 0, 150));
+    //fill(col);
+    //ellipse(pos.x, pos.y, 1, 1);
     rectMode(CENTER);
     rect(pos.x, pos.y, 1, 1);
 
