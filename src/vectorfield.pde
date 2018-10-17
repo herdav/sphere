@@ -1,11 +1,16 @@
 // Sphere (concept vector field), David Herren, 2018
 
-Vectorfield[] vector;
+import controlP5.*;
+ControlP5 cp5;
+
+Vectorfield vctr;
+ArrayList < Vectorfield > vectors;
+
 PVector pos_segment_vectorfield = new PVector();
 float d_segment_vectorfield, r_segment_vectorfield, maxDist_vectorfield;
 float delay_segment_vectorfield = 0.03;
-int nx_segment_vectorfield = 150;
-int ny_segment_vectorfield = nx_segment_vectorfield;
+int nx_segment_vectorfield = 50;
+int ny_segment_vectorfield;
 int n_segment_vectorfield;
 
 Target targt;
@@ -16,7 +21,7 @@ ArrayList < Particle > particles;
 
 int count_particles;
 int birthrate_particles = 1;
-int streams_particles = 200;
+int streams_particles = 100;
 int lifespan_particles = 100;
 float speed_particles = 18;
 int lx_particles, ly_particles, border_particles;
@@ -25,24 +30,15 @@ color gray = color(180);
 color darkgray = color(90);
 
 void setup() {
-  size(900, 900, P2D);
+  size(1000, 1000, P2D);
   //blendMode(ADD);
+
+  control();
+
+  vectors = new ArrayList < Vectorfield > ();
 
   targets = new ArrayList < Target > ();
   targets.add(new Target(0, 0));
-
-  d_segment_vectorfield = width / nx_segment_vectorfield;
-  r_segment_vectorfield = d_segment_vectorfield / 2;
-  n_segment_vectorfield = nx_segment_vectorfield * ny_segment_vectorfield;
-  maxDist_vectorfield = sqrt(2 * sq((nx_segment_vectorfield - 1) * d_segment_vectorfield));
-  vector = new Vectorfield[n_segment_vectorfield];
-  for (int i = 0; i < ny_segment_vectorfield; i++) {
-    for (int j = 0; j < nx_segment_vectorfield; j++) {
-      pos_segment_vectorfield.x = j * d_segment_vectorfield + r_segment_vectorfield;
-      pos_segment_vectorfield.y = i * d_segment_vectorfield + r_segment_vectorfield;
-      vector[i * ny_segment_vectorfield + j] = new Vectorfield(pos_segment_vectorfield);
-    }
-  }
 
   particles = new ArrayList < Particle > ();
   border_particles = int(d_segment_vectorfield);
@@ -57,6 +53,30 @@ void draw() {
   particles();
   data();
   //pictures();
+}
+
+void control() {
+  cp5 = new ControlP5(this);
+
+  cp5.addSlider("streams_particles")
+    .setPosition(20, 70)
+    .setRange(0, 200);
+
+  cp5.addSlider("lifespan_particles")
+    .setPosition(20, 90)
+    .setRange(0, 200);
+
+  cp5.addSlider("speed_particles")
+    .setPosition(20, 110)
+    .setRange(0, 20);
+
+  cp5.addSlider("delay_segment_vectorfield")
+    .setPosition(20, 130)
+    .setRange(0, 0.1);
+
+  cp5.addSlider("nx_segment_vectorfield")
+    .setPosition(20, 150)
+    .setRange(5, 200);
 }
 
 void targets() {
@@ -109,17 +129,33 @@ void mouseClicked() {
 }
 
 void field() {
-  for (int i = 0; i < n_segment_vectorfield; i++) {
-    for (int j = targets.size() - 1; j >= 0; j--) {
-      vector[i].target(targets.get(j).pos);
-      vector[i].magnitude(delay_segment_vectorfield);
+  ny_segment_vectorfield = nx_segment_vectorfield;
+  n_segment_vectorfield = nx_segment_vectorfield * ny_segment_vectorfield;
+  if (n_segment_vectorfield != vectors.size()) {
+    for (int i = vectors.size() - 1; i >= 0; i--) {
+      vectors.remove(i);
     }
-    vector[i].colorize(key);
-    //vector[i].grid(darkgray);
+    d_segment_vectorfield = width / nx_segment_vectorfield;
+    r_segment_vectorfield = d_segment_vectorfield / 2;
+    maxDist_vectorfield = sqrt(2 * sq((nx_segment_vectorfield - 1) * d_segment_vectorfield));
+    for (int i = 0; i < ny_segment_vectorfield; i++) {
+      for (int j = 0; j < nx_segment_vectorfield; j++) {
+        pos_segment_vectorfield.x = j * d_segment_vectorfield + r_segment_vectorfield;
+        pos_segment_vectorfield.y = i * d_segment_vectorfield + r_segment_vectorfield;
+        vectors.add(new Vectorfield(pos_segment_vectorfield));
+      }
+    }
   }
 
-  fill(255, 0, 0);
-  noStroke();
+  for (int i = 0; i < n_segment_vectorfield; i++) {
+    Vectorfield vctr = vectors.get(i);
+    for (int j = targets.size() - 1; j >= 0; j--) {
+      vctr.target(targets.get(j).pos);
+      vctr.magnitude(delay_segment_vectorfield);
+    }
+    vctr.colorize(key);
+    //vctr[i].grid(darkgray);
+  }
 }
 
 void data() {
@@ -130,7 +166,7 @@ void data() {
   fill(0);
   textAlign(LEFT, TOP);
   text("Sphere  //  Vector field  //  " + float(int(float(frameCount) / millis() * 10000)) / 10 + " fps  //  " +
-    n_segment_vectorfield + " vectors  //  " + targets.size() + " targets  //  " + particles.size() + " particles  //  David Herren  //  2018", 3, 3);
+    vectors.size() + " vectors  //  " + targets.size() + " targets  //  " + particles.size() + " particles  //  David Herren  //  2018", 3, 3);
 }
 
 void pictures() {
@@ -284,8 +320,9 @@ class Particle {
 
   void update() {
     active = int(round(pos.y / d_segment_vectorfield) * ny_segment_vectorfield + round(pos.x / d_segment_vectorfield)); // detect active vector
-    if (active >= 0 && active < vector.length) {
-      aclr.add(vector[active].force);
+    if (active >= 0 && active < vectors.size()) {
+      Vectorfield vctr = vectors.get(active);
+      aclr.add(vctr.force);
     }
     force = PVector.add(pos, aclr);
     aclr.setMag(speed_particles);
