@@ -3,6 +3,9 @@
 import controlP5.*;
 ControlP5 cp5;
 
+import processing.pdf.*;
+boolean record = true;
+
 Vectorfield vctr;
 ArrayList < Vectorfield > vectors;
 
@@ -21,66 +24,108 @@ ArrayList < Particle > particles;
 
 int count_particles;
 int birthrate_particles = 1;
+int size_particles = 1;
 int streams_particles = 100;
 int lifespan_particles = 100;
 float speed_particles = 18;
 int lx_particles, ly_particles, border_particles;
 
+int border_left;
+
 color gray = color(180);
 color darkgray = color(90);
 
 void setup() {
-  size(1000, 1000, P2D);
-  //blendMode(ADD);
+  size(1500, 1000, P2D);
+  blendMode(ADD);
+
+  textSize(10);
 
   control();
 
+  border_left = width - height;
+
   vectors = new ArrayList < Vectorfield > ();
-
-  targets = new ArrayList < Target > ();
-  targets.add(new Target(0, 0));
-
   particles = new ArrayList < Particle > ();
-  border_particles = int(d_segment_vectorfield);
-  lx_particles = (width - 2 * border_particles) / streams_particles;
-  ly_particles = (height - 2 * border_particles) / streams_particles;
+  targets = new ArrayList < Target > ();
+  targets.add(new Target(border_left + (width - border_left) / 2, height / 2));
 }
 
 void draw() {
+  pictures();
+  if (record) {
+    beginRecord(PDF, "\\export\\pdf\\frame-######.pdf");
+  }
   background(0);
   field();
   targets();
   particles();
   data();
-  //pictures();
+  if (record) {
+    endRecord();
+    record = false;
+  }
 }
 
 void control() {
   cp5 = new ControlP5(this);
 
   cp5.addSlider("streams_particles")
-    .setPosition(20, 70)
+    .setColorBackground(color(50))
+    .setColorForeground(color(100))
+    .setColorActive(color(150))
+    .setSize(200, 14)
+    .setPosition(20, 24)
     .setRange(0, 200);
 
   cp5.addSlider("lifespan_particles")
-    .setPosition(20, 90)
+    .setColorBackground(color(50))
+    .setColorForeground(color(100))
+    .setColorActive(color(150))
+    .setSize(200, 14)
+    .setPosition(20, 48)
     .setRange(0, 200);
 
   cp5.addSlider("speed_particles")
-    .setPosition(20, 110)
+    .setColorBackground(color(50))
+    .setColorForeground(color(100))
+    .setColorActive(color(150))
+    .setSize(200, 14)
+    .setPosition(20, 72)
     .setRange(0, 20);
 
+  cp5.addSlider("size_particles")
+    .setColorBackground(color(50))
+    .setColorForeground(color(100))
+    .setColorActive(color(150))
+    .setSize(200, 14)
+    .setPosition(20, 96)
+    .setRange(1, 20);
+
   cp5.addSlider("delay_segment_vectorfield")
-    .setPosition(20, 130)
+    .setColorBackground(color(50))
+    .setColorForeground(color(100))
+    .setColorActive(color(150))
+    .setSize(200, 14)
+    .setPosition(20, 120)
     .setRange(0, 0.1);
 
   cp5.addSlider("nx_segment_vectorfield")
-    .setPosition(20, 150)
+    .setColorBackground(color(50))
+    .setColorForeground(color(100))
+    .setColorActive(color(150))
+    .setSize(200, 14)
+    .setPosition(20, 144)
     .setRange(5, 200);
 }
 
 void targets() {
-  targets.get(0).display(mouseX, mouseY);
+  if (mouseX >= border_left) {
+    targets.get(0).display(mouseX, mouseY);
+  }
+  if (mouseX < border_left) {
+    targets.get(0).display((width - border_left) / 2 + border_left, height / 2);
+  }
   for (Target targets: targets) {
     targets.display();
   }
@@ -91,16 +136,16 @@ void particles() {
   if (count_particles == birthrate_particles) {
     count_particles = 0;
     for (int i = 0; i <= streams_particles; i++) {
-      particles.add(new Particle(border_particles, border_particles + ly_particles * i, lifespan_particles, color(255, 0, 0))); // left
+      particles.add(new Particle(border_left + border_particles, border_particles + ly_particles * i, lifespan_particles, "red")); // left
     }
     for (int i = 0; i <= streams_particles; i++) {
-      particles.add(new Particle(border_particles + lx_particles * i, border_particles, lifespan_particles, color(255, 255, 0))); // top
+      particles.add(new Particle(width - border_particles, border_particles + ly_particles * i, lifespan_particles, "green")); // right
     }
     for (int i = 0; i <= streams_particles; i++) {
-      particles.add(new Particle(width - border_particles, border_particles + ly_particles * i, lifespan_particles, color(0, 0, 255))); // right
+      particles.add(new Particle(border_left + border_particles + lx_particles * i, border_particles, lifespan_particles, "magenta")); // top
     }
     for (int i = 0; i <= streams_particles; i++) {
-      particles.add(new Particle(border_particles + lx_particles * i, height - border_particles, lifespan_particles, color(255, 0, 255))); // bottom
+      particles.add(new Particle(border_left + border_particles + lx_particles * i, height - border_particles, lifespan_particles, "cyan")); // bottom
     }
   }
 
@@ -117,17 +162,6 @@ void particles() {
   }
 }
 
-void mouseClicked() {
-  if (mouseButton == LEFT) {
-    targets.add(new Target(mouseX, mouseY));
-  }
-  if (mouseButton == RIGHT && targets.size() > 1) {
-    for (int i = targets.size() - 1; i > 0; i--) {
-      targets.remove(i);
-    }
-  }
-}
-
 void field() {
   ny_segment_vectorfield = nx_segment_vectorfield;
   n_segment_vectorfield = nx_segment_vectorfield * ny_segment_vectorfield;
@@ -135,12 +169,22 @@ void field() {
     for (int i = vectors.size() - 1; i >= 0; i--) {
       vectors.remove(i);
     }
-    d_segment_vectorfield = width / nx_segment_vectorfield;
+
+    if (height % ny_segment_vectorfield > 0) {
+      nx_segment_vectorfield++;
+    }
+
+    d_segment_vectorfield = height / nx_segment_vectorfield;
     r_segment_vectorfield = d_segment_vectorfield / 2;
     maxDist_vectorfield = sqrt(2 * sq((nx_segment_vectorfield - 1) * d_segment_vectorfield));
+
+    border_particles = int(d_segment_vectorfield);
+    ly_particles = (height - 2 * border_particles) / streams_particles;
+    lx_particles = ly_particles;
+
     for (int i = 0; i < ny_segment_vectorfield; i++) {
       for (int j = 0; j < nx_segment_vectorfield; j++) {
-        pos_segment_vectorfield.x = j * d_segment_vectorfield + r_segment_vectorfield;
+        pos_segment_vectorfield.x = border_left + j * d_segment_vectorfield + r_segment_vectorfield;
         pos_segment_vectorfield.y = i * d_segment_vectorfield + r_segment_vectorfield;
         vectors.add(new Vectorfield(pos_segment_vectorfield));
       }
@@ -158,19 +202,31 @@ void field() {
   }
 }
 
+void mouseClicked() {
+  if (mouseButton == LEFT && mouseX > border_left) {
+    targets.add(new Target(mouseX, mouseY));
+  }
+  if (mouseButton == RIGHT && targets.size() > 1 && mouseX > border_left) {
+    for (int i = targets.size() - 1; i > 0; i--) {
+      targets.remove(i);
+    }
+  }
+}
+
 void data() {
-  noStroke();
   fill(255);
-  rectMode(CORNER);
-  rect(0, 0, width, 19);
-  fill(0);
-  textAlign(LEFT, TOP);
-  text("Sphere  //  Vector field  //  " + float(int(float(frameCount) / millis() * 10000)) / 10 + " fps  //  " +
-    vectors.size() + " vectors  //  " + targets.size() + " targets  //  " + particles.size() + " particles  //  David Herren  //  2018", 3, 3);
+  textAlign(LEFT, BOTTOM);
+  text(float(int(float(frameCount) / millis() * 10000)) / 10 + " fps" + "\n" +
+    vectors.size() + " vectors" + "\n" +
+    targets.size() + " targets" + "\n" +
+    particles.size() + " particles", 20, height - 20);
 }
 
 void pictures() {
-  saveFrame("\\export\\img\\frame-######.png");
+  //saveFrame("\\export\\img\\frame-######.png");
+  if (key == 's') {
+    record = true;
+  }
 }
 
 class Target {
@@ -184,15 +240,15 @@ class Target {
   void display(float x, float y) {
     pos.x = x;
     pos.y = y;
-    /*noStroke();
-    fill(255, 0, 0);
-    ellipse(pos.x, pos.y, 10, 10);*/
+    noStroke();
+    fill(255);
+    ellipse(pos.x, pos.y, 10, 10);
   }
 
   void display() {
-    /*noStroke();
-    fill(255, 0, 0);
-    ellipse(pos.x, pos.y, 10, 10);*/
+    noStroke();
+    fill(255);
+    ellipse(pos.x, pos.y, 10, 10);
   }
 }
 
@@ -308,18 +364,20 @@ class Particle {
 
   float dist;
   int active, lifespan, startlifespan;
-  color col;
+  String tint;
+  color c;
+  int dens = 255;
 
-  Particle(float x, float y, int l, color c) {
+  Particle(float x, float y, int l, String t) {
     pos.x = x;
     pos.y = y;
     lifespan = l;
     startlifespan = l;
-    col = c;
+    tint = t;
   }
 
   void update() {
-    active = int(round(pos.y / d_segment_vectorfield) * ny_segment_vectorfield + round(pos.x / d_segment_vectorfield)); // detect active vector
+    active = int(round(pos.y / d_segment_vectorfield) * ny_segment_vectorfield + round((pos.x - border_left) / d_segment_vectorfield)); // detect active vector
     if (active >= 0 && active < vectors.size()) {
       Vectorfield vctr = vectors.get(active);
       aclr.add(vctr.force);
@@ -331,18 +389,40 @@ class Particle {
 
   void lifespan() {
     lifespan--;
-    if (pos.x <= border_particles || pos.x >= width - border_particles || pos.y <= border_particles || pos.y >= height - border_particles) {
+    if (pos.x <= border_particles + border_left || pos.x >= width - border_particles || pos.y <= border_particles || pos.y >= height - border_particles) {
       lifespan = 0;
     }
   }
 
   void display() {
+    dens = int(map(lifespan, startlifespan, 0, 0, 127));
+    if (tint == "red") {
+      c = color(255, 0, 0, dens);
+    }
+    if (tint == "green") {
+      c = color(0, 255, 0, dens);
+    }
+    if (tint == "blue") {
+      c = color(0, 0, 255, dens);
+    }
+    if (tint == "magenta") {
+      c = color(255, 0, 255, dens);
+    }
+    if (tint == "yellow") {
+      c = color(255, 255, 0, dens);
+    }
+    if (tint == "cyan") {
+      c = color(0, 255, 255, dens);
+    }
+    if (tint == "white" || key == '5') {
+      c = color(255, 255, 255, dens);
+    }
+
     noStroke();
-    fill(255, map(lifespan, startlifespan, 0, 0, 150));
-    //fill(col);
+    fill(c);
     //ellipse(pos.x, pos.y, 1, 1);
     rectMode(CENTER);
-    rect(pos.x, pos.y, 1, 1);
+    rect(pos.x, pos.y, size_particles, size_particles);
 
     /*noFill();
     stroke(c);
