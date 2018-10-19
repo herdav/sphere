@@ -39,9 +39,11 @@ color darkgray = color(90);
 color color_a, color_b, color_c, color_d;
 
 boolean record = true;
+boolean targets_display = false;
+int theme = 0;
 
 void setup() {
-  size(1800, 1000, P2D);
+  size(1600, 800, P2D);
   blendMode(ADD);
 
   textSize(10);
@@ -119,16 +121,18 @@ void control() {
   cp5.addColorWheel("color_c", 0, 130, 100).setRGB(color(255, 0, 0)).setCaptionLabel("TOP").setGroup(cp5g1);
   cp5.addColorWheel("color_d", 120, 130, 100).setRGB(color(255, 0, 255)).setCaptionLabel("BOTTOM").setGroup(cp5g1);
 
-  cp5.addRadioButton("THEME")
-    .setPosition(400, 20)
-    .setSize(20, cp5h)
-    .addItem("PARTICLES", 0)
-    .addItem("VECTORFIELD", 1)
-    .addItem("LIGHT_DARK", 2)
-    .addItem("HEAT_MAP", 3)
-    .addItem("FIELD_LINES", 4);
-}
+  ButtonBar themes = cp5.addButtonBar("theme")
+    .setPosition(20, 500)
+    .setSize(cp5w, 20)
+    .addItems(split("1 2 3 4 5", " "))
+    .onMove(new CallbackListener() {
+      public void controlEvent(CallbackEvent ev) {
+        ButtonBar theme = (ButtonBar) ev.getController();
+      }
+    });
 
+  cp5.addToggle("targets_display", 20, 600, 20, 20).setCaptionLabel("TARGETS");
+}
 
 void controlEvent(ControlEvent theControlEvent) {
   if (theControlEvent.isFrom("PARTICLE_SATURATION")) {
@@ -139,13 +143,16 @@ void controlEvent(ControlEvent theControlEvent) {
 
 void targets() {
   if (mouseX >= border_left) {
-    targets.get(0).display(mouseX, mouseY);
+    targets.get(0).update(mouseX, mouseY);
   }
   if (mouseX < border_left) {
-    targets.get(0).display((width - border_left) / 2 + border_left, height / 2);
+    targets.get(0).update((width - border_left) / 2 + border_left, height / 2);
   }
   for (Target targets: targets) {
-    targets.display();
+    targets.update();
+    if (targets_display == true) {
+      targets.display();
+    }
   }
 }
 
@@ -214,7 +221,7 @@ void field() {
       vctr.target(targets.get(j).pos);
       vctr.magnitude(delay_segment_vectorfield);
     }
-    vctr.colorize(key);
+    vctr.colorize(theme);
     //vctr.grid(darkgray);
   }
 }
@@ -254,13 +261,12 @@ class Target {
     pos.y = y;
   }
 
-  void display(float x, float y) {
+  void update(float x, float y) {
     pos.x = x;
     pos.y = y;
-    noStroke();
-    fill(255);
-    ellipse(pos.x, pos.y, 10, 10);
   }
+
+  void update() {}
 
   void display() {
     noStroke();
@@ -308,11 +314,11 @@ class Vectorfield {
     //rect(orgin.x, orgin.y, d_segment_vectorfield, d_segment_vectorfield);
   }
 
-  void colorize(char input) {
+  void colorize(int input) {
     float scope;
     int n, r;
     switch (input) {
-      case '1': // vector field
+      case 1: // vector field
         noFill();
         stroke(darkgray);
         line(orgin.x, orgin.y, direct.x, direct.y);
@@ -321,12 +327,12 @@ class Vectorfield {
         line(orgin.x, orgin.y, result.x, result.y);
         break;
 
-      case '2': // light dark
+      case 2: // light dark
         scope = map(magnitude, 0, d_segment_vectorfield, 0, 255);
         fill(scope);
         break;
 
-      case '3': // heat map
+      case 3: // heat map
         n = 11;
         r = 128;
         scope = map(magnitude, 0, d_segment_vectorfield, 0, n * r);
@@ -351,7 +357,7 @@ class Vectorfield {
         }
         break;
 
-      case '4': // field lines
+      case 4: // field lines
         n = 100;
         for (int i = 0; i <= n; i++) {
           scope = map(magnitude, 0, d_segment_vectorfield, 0, n);
@@ -398,7 +404,7 @@ class Particle {
       Vectorfield vctr = vectors.get(active);
       aclr.add(vctr.force);
     }
-    force = PVector.add(pos, aclr);
+    force = PVector.sub(pos, aclr);
     aclr.setMag(speed_particles);
     pos.add(aclr);
   }
