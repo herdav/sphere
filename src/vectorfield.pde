@@ -8,12 +8,12 @@ ControlP5 cp5;
 Vectorfield vctr;
 ArrayList < Vectorfield > vectors;
 
-PVector pos_segment_vectorfield = new PVector();
-float d_segment_vectorfield, r_segment_vectorfield, maxDist_vectorfield;
-float delay_segment_vectorfield = 0.03;
-int nx_segment_vectorfield = 50;
-int ny_segment_vectorfield;
-int n_segment_vectorfield;
+PVector vectorfield_segment_pos = new PVector();
+float vectorfield_segment_d, vectorfield_segment_r, vectorfield_maxDist;
+float vectorfield_segment_delay = 0.03;
+int vectorfield_segment_nx = 50;
+int vectorfield_segment_ny;
+int vectorfield_segment_n;
 
 Target targt;
 ArrayList < Target > targets;
@@ -21,15 +21,15 @@ ArrayList < Target > targets;
 Particle part;
 ArrayList < Particle > particles;
 
-int count_particles;
-int birthrate_particles = 1;
-int size_particles = 1;
-int streams_particles = 100;
-int lifespan_particles = 100;
-float speed_particles = 12;
-int lx_particles, ly_particles;
-int saturationMin_particles = 0;
-int saturationMax_particles = 127;
+int particles_count;
+int particles_lx, particles_ly;
+int particles_birthrate = 1;
+int particles_size = 1;
+int particles_streams = 100;
+int particles_lifespan = 100;
+int particles_saturation_min = 0;
+int particles_saturation_max = 127;
+float particles_speed = 12;
 
 int border_left;
 
@@ -38,20 +38,17 @@ color darkgray = color(90);
 
 color color_a, color_b, color_c, color_d;
 
-boolean record = true;
+boolean controls_show = true;
+boolean record_pdf = true;
 boolean targets_display = false;
 int theme = 0;
 
 void setup() {
-  size(1600, 800, P2D);
+  size(1800, 1000, P2D);
   blendMode(ADD);
-
-  textSize(10);
-
-  control();
-
+  textSize(9);
+  gui();
   border_left = width - height;
-
   vectors = new ArrayList < Vectorfield > ();
   particles = new ArrayList < Particle > ();
   targets = new ArrayList < Target > ();
@@ -59,8 +56,9 @@ void setup() {
 }
 
 void draw() {
-  pictures();
-  if (record) {
+  control();
+  record();
+  if (record_pdf) {
     beginRecord(PDF, "\\export\\pdf\\frame-######.pdf");
   }
   background(0);
@@ -68,21 +66,21 @@ void draw() {
   targets();
   particles();
   data();
-  if (record) {
+  if (record_pdf) {
     endRecord();
-    record = false;
+    record_pdf = false;
   }
 }
 
-void control() {
-  int cp5w = 220;
-  int cp5h = 14;
-  int cp5x = 20;
-  int cp5y = 20;
-  int[] cp5d = new int[10];
+void gui() {
+  int cp5_w = 220;
+  int cp5_h = 14;
+  int cp5_x = 20;
+  int cp5_y = 20;
+  int[] cp5_d = new int[20];
 
-  for (int i = 0; i < cp5d.length; i++) {
-    cp5d[i] = int(cp5y + i * cp5h * 1.5);
+  for (int i = 0; i < cp5_d.length; i++) {
+    cp5_d[i] = int((i + 2) * cp5_h * 1.5);
   }
 
   cp5 = new ControlP5(this);
@@ -91,39 +89,9 @@ void control() {
     .setColorForeground(color(100))
     .setColorActive(color(150));
 
-  // name, minValue, maxValue, x, y, width, height
-  cp5.addSlider("nx_segment_vectorfield", 5, 300, cp5x, cp5d[0], cp5w, cp5h).setCaptionLabel("VECTORFIELD_SEGMENTS");
-  cp5.addSlider("delay_segment_vectorfield", 0, 0.1, cp5x, cp5d[1], cp5w, cp5h).setCaptionLabel("VECTORFIELD_DELAY");
-
-  cp5.addSlider("birthrate_particles", 1, 60, cp5x, cp5d[2], cp5w, cp5h).setCaptionLabel("PARTICLE_BIRTHRATE");
-  cp5.addSlider("streams_particles", 1, 200, cp5x, cp5d[3], cp5w, cp5h).setCaptionLabel("PARTICLE_STREAMS");
-  cp5.addSlider("lifespan_particles", 1, 200, cp5x, cp5d[4], cp5w, cp5h).setCaptionLabel("PARTICLE_LIFESPAN");
-  cp5.addSlider("speed_particles", 1, 30, cp5x, cp5d[5], cp5w, cp5h).setCaptionLabel("PARTICLE_SPEED");
-  cp5.addSlider("size_particles", 1, 20, cp5x, cp5d[6], cp5w, cp5h).setCaptionLabel("PARTICLE_SIZE");
-
-  cp5.addRange("PARTICLE_SATURATION")
-    .setBroadcast(false)
-    .setPosition(cp5x, cp5d[7])
-    .setSize(cp5w, cp5h)
-    .setHandleSize(5)
-    .setRange(0, 255)
-    .setRangeValues(saturationMin_particles, saturationMax_particles)
-    .setBroadcast(true);
-
-  Group cp5g1 = cp5.addGroup("COLOR")
-    .setPosition(cp5x, cp5d[8] + 20)
-    .setWidth(cp5w)
-    .setBackgroundHeight(250)
-    .setBackgroundColor(color(255, 50));
-
-  cp5.addColorWheel("color_a", 0, 10, 100).setRGB(color(0, 255, 0)).setCaptionLabel("LEFT").setGroup(cp5g1);
-  cp5.addColorWheel("color_b", 120, 10, 100).setRGB(color(0, 0, 255)).setCaptionLabel("RIGHT").setGroup(cp5g1);
-  cp5.addColorWheel("color_c", 0, 130, 100).setRGB(color(255, 0, 0)).setCaptionLabel("TOP").setGroup(cp5g1);
-  cp5.addColorWheel("color_d", 120, 130, 100).setRGB(color(255, 0, 255)).setCaptionLabel("BOTTOM").setGroup(cp5g1);
-
   ButtonBar themes = cp5.addButtonBar("theme")
-    .setPosition(20, 500)
-    .setSize(cp5w, 20)
+    .setPosition(20, 20)
+    .setSize(cp5_w, cp5_h)
     .addItems(split("1 2 3 4 5", " "))
     .onMove(new CallbackListener() {
       public void controlEvent(CallbackEvent ev) {
@@ -131,13 +99,58 @@ void control() {
       }
     });
 
-  cp5.addToggle("targets_display", 20, 600, 20, 20).setCaptionLabel("TARGETS");
+  // name, minValue, maxValue, x, y, width, height
+  cp5.addSlider("vectorfield_segment_nx", 5, 300, cp5_x, cp5_d[0], cp5_w, cp5_h);
+  cp5.addSlider("vectorfield_segment_delay", 0, 0.1, cp5_x, cp5_d[1], cp5_w, cp5_h);
+  cp5.addSlider("particles_birthrate", 1, 60, cp5_x, cp5_d[2], cp5_w, cp5_h);
+  cp5.addSlider("particles_streams", 1, 200, cp5_x, cp5_d[3], cp5_w, cp5_h);
+  cp5.addSlider("particles_lifespan", 1, 200, cp5_x, cp5_d[4], cp5_w, cp5_h);
+  cp5.addSlider("particles_speed", 1, 30, cp5_x, cp5_d[5], cp5_w, cp5_h);
+  cp5.addSlider("particles_size", 1, 20, cp5_x, cp5_d[6], cp5_w, cp5_h);
+
+  cp5.addRange("PARTICLES_SATURATION")
+    .setBroadcast(false)
+    .setPosition(cp5_x, cp5_d[7])
+    .setSize(cp5_w, cp5_h)
+    .setHandleSize(5)
+    .setRange(0, 255)
+    .setRangeValues(particles_saturation_min, particles_saturation_max)
+    .setBroadcast(true);
+
+  cp5_d[8] = cp5_d[7] + cp5_h / 2;
+
+  cp5.addToggle("targets_display", 20, cp5_d[8] + cp5_h, 40, 20).setCaptionLabel("TARGETS")
+    .getCaptionLabel().align(CENTER, CENTER);
+
+  cp5_d[9] = cp5_d[8] + 80;
+
+  Group cp5_color = cp5.addGroup("COLOR")
+    .setPosition(cp5_x, cp5_d[9])
+    .setWidth(cp5_w)
+    .setBackgroundHeight(250)
+    .setBackgroundColor(color(255, 50));
+
+  cp5.addColorWheel("color_a", 0, 10, 100).setRGB(color(0, 255, 0)).setCaptionLabel("LEFT").setGroup(cp5_color);
+  cp5.addColorWheel("color_b", 120, 10, 100).setRGB(color(0, 0, 255)).setCaptionLabel("RIGHT").setGroup(cp5_color);
+  cp5.addColorWheel("color_c", 0, 130, 100).setRGB(color(255, 0, 0)).setCaptionLabel("TOP").setGroup(cp5_color);
+  cp5.addColorWheel("color_d", 120, 130, 100).setRGB(color(255, 0, 255)).setCaptionLabel("BOTTOM").setGroup(cp5_color);
 }
 
 void controlEvent(ControlEvent theControlEvent) {
   if (theControlEvent.isFrom("PARTICLE_SATURATION")) {
-    saturationMin_particles = int(theControlEvent.getController().getArrayValue(0));
-    saturationMax_particles = int(theControlEvent.getController().getArrayValue(1));
+    particles_saturation_min = int(theControlEvent.getController().getArrayValue(0));
+    particles_saturation_max = int(theControlEvent.getController().getArrayValue(1));
+  }
+}
+
+void control() {
+  if (keyPressed == true && key == 'q') {
+    controls_show = false;
+    cp5.hide();
+  }
+  if (keyPressed == true && key == 'w') {
+    controls_show = true;
+    cp5.show();
   }
 }
 
@@ -157,20 +170,20 @@ void targets() {
 }
 
 void particles() {
-  count_particles++;
-  if (count_particles == birthrate_particles) {
-    count_particles = 0;
-    for (int i = 0; i <= streams_particles; i++) {
-      particles.add(new Particle(border_left + d_segment_vectorfield, d_segment_vectorfield + ly_particles * i, lifespan_particles, color_a)); // left
+  particles_count++;
+  if (particles_count == particles_birthrate) {
+    particles_count = 0;
+    for (int i = 0; i <= particles_streams; i++) {
+      particles.add(new Particle(border_left + vectorfield_segment_d, vectorfield_segment_d + particles_ly * i, particles_lifespan, color_a)); // left
     }
-    for (int i = 0; i <= streams_particles; i++) {
-      particles.add(new Particle(width - d_segment_vectorfield, d_segment_vectorfield + ly_particles * i, lifespan_particles, color_b)); // right
+    for (int i = 0; i <= particles_streams; i++) {
+      particles.add(new Particle(width - vectorfield_segment_d, vectorfield_segment_d + particles_ly * i, particles_lifespan, color_b)); // right
     }
-    for (int i = 0; i <= streams_particles; i++) {
-      particles.add(new Particle(border_left + d_segment_vectorfield + lx_particles * i, d_segment_vectorfield, lifespan_particles, color_c)); // top
+    for (int i = 0; i <= particles_streams; i++) {
+      particles.add(new Particle(border_left + vectorfield_segment_d + particles_lx * i, vectorfield_segment_d, particles_lifespan, color_c)); // top
     }
-    for (int i = 0; i <= streams_particles; i++) {
-      particles.add(new Particle(border_left + d_segment_vectorfield + lx_particles * i, height - d_segment_vectorfield, lifespan_particles, color_d)); // bottom
+    for (int i = 0; i <= particles_streams; i++) {
+      particles.add(new Particle(border_left + vectorfield_segment_d + particles_lx * i, height - vectorfield_segment_d, particles_lifespan, color_d)); // bottom
     }
   }
 
@@ -188,38 +201,38 @@ void particles() {
 }
 
 void field() {
-  ny_segment_vectorfield = nx_segment_vectorfield;
-  n_segment_vectorfield = nx_segment_vectorfield * ny_segment_vectorfield;
-  if (n_segment_vectorfield != vectors.size()) {
+  vectorfield_segment_ny = vectorfield_segment_nx;
+  vectorfield_segment_n = vectorfield_segment_nx * vectorfield_segment_ny;
+  if (vectorfield_segment_n != vectors.size()) {
     for (int i = vectors.size() - 1; i >= 0; i--) {
       vectors.remove(i);
     }
 
-    if (height % ny_segment_vectorfield > 0) {
-      nx_segment_vectorfield++;
+    if (height % vectorfield_segment_ny > 0) {
+      vectorfield_segment_nx++;
     }
 
-    d_segment_vectorfield = height / nx_segment_vectorfield;
-    r_segment_vectorfield = d_segment_vectorfield / 2;
-    maxDist_vectorfield = sqrt(2 * sq((nx_segment_vectorfield - 1) * d_segment_vectorfield));
+    vectorfield_segment_d = height / vectorfield_segment_nx;
+    vectorfield_segment_r = vectorfield_segment_d / 2;
+    vectorfield_maxDist = sqrt(2 * sq((vectorfield_segment_nx - 1) * vectorfield_segment_d));
 
-    ly_particles = int((height - 2 * d_segment_vectorfield) / streams_particles);
-    lx_particles = ly_particles;
+    particles_ly = int((height - 2 * vectorfield_segment_d) / particles_streams);
+    particles_lx = particles_ly;
 
-    for (int i = 0; i < ny_segment_vectorfield; i++) {
-      for (int j = 0; j < nx_segment_vectorfield; j++) {
-        pos_segment_vectorfield.x = border_left + j * d_segment_vectorfield + r_segment_vectorfield;
-        pos_segment_vectorfield.y = i * d_segment_vectorfield + r_segment_vectorfield;
-        vectors.add(new Vectorfield(pos_segment_vectorfield));
+    for (int i = 0; i < vectorfield_segment_ny; i++) {
+      for (int j = 0; j < vectorfield_segment_nx; j++) {
+        vectorfield_segment_pos.x = border_left + j * vectorfield_segment_d + vectorfield_segment_r;
+        vectorfield_segment_pos.y = i * vectorfield_segment_d + vectorfield_segment_r;
+        vectors.add(new Vectorfield(vectorfield_segment_pos));
       }
     }
   }
 
-  for (int i = 0; i < n_segment_vectorfield; i++) {
+  for (int i = 0; i < vectorfield_segment_n; i++) {
     Vectorfield vctr = vectors.get(i);
     for (int j = targets.size() - 1; j >= 0; j--) {
       vctr.target(targets.get(j).pos);
-      vctr.magnitude(delay_segment_vectorfield);
+      vctr.magnitude(vectorfield_segment_delay);
     }
     vctr.colorize(theme);
     //vctr.grid(darkgray);
@@ -238,18 +251,26 @@ void mouseClicked() {
 }
 
 void data() {
-  fill(255);
-  textAlign(LEFT, BOTTOM);
-  text(float(int(float(frameCount) / millis() * 10000)) / 10 + " fps" + "\n" +
-    vectors.size() + " vectors" + "\n" +
-    targets.size() + " targets" + "\n" +
-    particles.size() + " particles", 20, height - 20);
+  if (controls_show == true) {
+    fill(255);
+    textAlign(LEFT, BOTTOM);
+    text("[s] : save frame as pdf\n" + "[q] : hide gui\n" + "[w] : show gui\n\n" +
+      "FPS\n" + "VECTORS\n" + "PARTICLES\n" + "TARGETS\n\n" +
+      year() + '/' + month() + '/' + day() + "\n\n" +
+      "Sphere (concept vector field)\n" + "David Herren", 20, height - 20);
+
+    text(float(int(float(frameCount) / millis() * 10000)) / 10 + "\n" +
+      vectors.size() + "\n" +
+      particles.size() + "\n" +
+      targets.size() + "\n\n" +
+      hour() + ':' + minute() + ':' + second() + "\n\n\n", 100, height - 20);
+  }
 }
 
-void pictures() {
+void record() {
   //saveFrame("\\export\\img\\frame-######.png");
-  if (key == 's') {
-    record = true;
+  if (keyPressed == true && key == 's') {
+    record_pdf = true;
   }
 }
 
@@ -292,7 +313,7 @@ class Vectorfield {
 
   void target(PVector target) {
     dist = orgin.dist(target);
-    dist = r_segment_vectorfield - r_segment_vectorfield * dist / maxDist_vectorfield;
+    dist = vectorfield_segment_r - vectorfield_segment_r * dist / vectorfield_maxDist;
     direct = PVector.sub(target, orgin);
     direct.setMag(dist);
     direct.add(orgin);
@@ -309,9 +330,9 @@ class Vectorfield {
   void grid(color c) {
     noFill();
     stroke(c);
-    ellipse(orgin.x, orgin.y, d_segment_vectorfield, d_segment_vectorfield);
+    ellipse(orgin.x, orgin.y, vectorfield_segment_d, vectorfield_segment_d);
     rectMode(CENTER);
-    //rect(orgin.x, orgin.y, d_segment_vectorfield, d_segment_vectorfield);
+    //rect(orgin.x, orgin.y, vectorfield_segment_d, vectorfield_segment_d);
   }
 
   void colorize(int input) {
@@ -328,14 +349,14 @@ class Vectorfield {
         break;
 
       case 2: // light dark
-        scope = map(magnitude, 0, d_segment_vectorfield, 0, 255);
+        scope = map(magnitude, 0, vectorfield_segment_d, 0, 255);
         fill(scope);
         break;
 
       case 3: // heat map
         n = 11;
         r = 128;
-        scope = map(magnitude, 0, d_segment_vectorfield, 0, n * r);
+        scope = map(magnitude, 0, vectorfield_segment_d, 0, n * r);
 
         if (scope >= 0 * r) { // blue
           fill(0, 0, scope);
@@ -360,7 +381,7 @@ class Vectorfield {
       case 4: // field lines
         n = 100;
         for (int i = 0; i <= n; i++) {
-          scope = map(magnitude, 0, d_segment_vectorfield, 0, n);
+          scope = map(magnitude, 0, vectorfield_segment_d, 0, n);
           if (scope >= i * 2 && i % 2 == 0) {
             fill(150);
           }
@@ -376,7 +397,7 @@ class Vectorfield {
 
     noStroke();
     rectMode(CENTER);
-    rect(orgin.x, orgin.y, d_segment_vectorfield, d_segment_vectorfield);
+    rect(orgin.x, orgin.y, vectorfield_segment_d, vectorfield_segment_d);
   }
 }
 
@@ -399,31 +420,31 @@ class Particle {
   }
 
   void update() {
-    active = int(round(pos.y / d_segment_vectorfield) * ny_segment_vectorfield + round((pos.x - border_left) / d_segment_vectorfield)); // detect active vector
+    active = int(round(pos.y / vectorfield_segment_d) * vectorfield_segment_ny + round((pos.x - border_left) / vectorfield_segment_d)); // detect active vector
     if (active >= 0 && active < vectors.size()) {
       Vectorfield vctr = vectors.get(active);
       aclr.add(vctr.force);
     }
     force = PVector.sub(pos, aclr);
-    aclr.setMag(speed_particles);
+    aclr.setMag(particles_speed);
     pos.add(aclr);
   }
 
   void lifespan() {
     lifespan--;
-    if (pos.x <= d_segment_vectorfield + border_left || pos.x >= width - d_segment_vectorfield || pos.y <= d_segment_vectorfield || pos.y >= height - d_segment_vectorfield) {
+    if (pos.x <= vectorfield_segment_d + border_left || pos.x >= width - vectorfield_segment_d || pos.y <= vectorfield_segment_d || pos.y >= height - vectorfield_segment_d) {
       lifespan = 0;
     }
   }
 
   void display() {
-    a = int(map(lifespan, startlifespan, 0, saturationMin_particles, saturationMax_particles));
+    a = int(map(lifespan, startlifespan, 0, particles_saturation_min, particles_saturation_max));
     r = (argb >> 16) & 0xFF;
     g = (argb >> 8) & 0xFF;
     b = argb & 0xFF;
     noStroke();
     fill(r, g, b, a);
     rectMode(CENTER);
-    rect(pos.x, pos.y, size_particles, size_particles);
+    rect(pos.x, pos.y, particles_size, particles_size);
   }
 }
