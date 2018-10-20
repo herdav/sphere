@@ -17,6 +17,7 @@ int vectorfield_segment_n;
 
 Target targt;
 ArrayList < Target > targets;
+boolean targets_removed = false;
 
 Particle part;
 ArrayList < Particle > particles;
@@ -32,12 +33,7 @@ int particles_saturation_max = 127;
 float particles_speed = 12;
 
 int border_left;
-
-color gray = color(180);
-color darkgray = color(90);
-
 color color_a, color_b, color_c, color_d;
-
 boolean controls_show = true;
 boolean record_pdf = true;
 boolean targets_display = false;
@@ -144,26 +140,48 @@ void controlEvent(ControlEvent theControlEvent) {
 }
 
 void control() {
-  if (keyPressed == true && key == 'q') {
+  if (keyPressed && key == 'q') {
     controls_show = false;
     cp5.hide();
   }
-  if (keyPressed == true && key == 'w') {
+  if (keyPressed && key == 'w' || controls_show == false && mouseX < 100) {
     controls_show = true;
     cp5.show();
   }
 }
 
+void mouseClicked() {
+  if (mouseButton == LEFT && mouseX > border_left) {
+    targets.add(new Target(mouseX, mouseY));
+  }
+  if (mouseButton == RIGHT && targets.size() > 1 && mouseX > border_left) {
+    for (int i = targets.size() - 1; i > 0; i--) {
+      targets.remove(i);
+    }
+  }
+}
+
 void targets() {
   if (mouseX >= border_left) {
-    targets.get(0).update(mouseX, mouseY);
+    if (targets_removed) {
+      targets.get(0).update(mouseX, mouseY);
+      targets_removed = false;
+    } else {
+      targets.get(0).update(mouseX, mouseY);
+    }
   }
   if (mouseX < border_left) {
-    targets.get(0).update((width - border_left) / 2 + border_left, height / 2);
+    if (targets.size() == 1) {
+      targets.get(0).update((width - border_left) / 2 + border_left, height / 2);
+    }
+    if (targets.size() > 1 && targets_removed == false) {
+      targets.remove(0);
+      targets_removed = true;
+    }
   }
   for (Target targets: targets) {
     targets.update();
-    if (targets_display == true) {
+    if (targets_display) {
       targets.display();
     }
   }
@@ -235,23 +253,12 @@ void field() {
       vctr.magnitude(vectorfield_segment_delay);
     }
     vctr.colorize(theme);
-    //vctr.grid(darkgray);
-  }
-}
-
-void mouseClicked() {
-  if (mouseButton == LEFT && mouseX > border_left) {
-    targets.add(new Target(mouseX, mouseY));
-  }
-  if (mouseButton == RIGHT && targets.size() > 1 && mouseX > border_left) {
-    for (int i = targets.size() - 1; i > 0; i--) {
-      targets.remove(i);
-    }
+    //vctr.grid();
   }
 }
 
 void data() {
-  if (controls_show == true) {
+  if (controls_show) {
     fill(255);
     textAlign(LEFT, BOTTOM);
     text("[s] : save frame as pdf\n" + "[q] : hide gui\n" + "[w] : show gui\n\n" +
@@ -268,8 +275,7 @@ void data() {
 }
 
 void record() {
-  //saveFrame("\\export\\img\\frame-######.png");
-  if (keyPressed == true && key == 's') {
+  if (keyPressed && key == 's') {
     record_pdf = true;
   }
 }
@@ -304,6 +310,8 @@ class Vectorfield {
   PVector result = new PVector();
   PVector force = new PVector();
 
+  color darkgray = color(90);
+
   float magnitude, dist;
 
   Vectorfield(PVector pos) {
@@ -327,9 +335,9 @@ class Vectorfield {
     force = PVector.sub(result, orgin);
   }
 
-  void grid(color c) {
+  void grid() {
     noFill();
-    stroke(c);
+    stroke(darkgray);
     ellipse(orgin.x, orgin.y, vectorfield_segment_d, vectorfield_segment_d);
     rectMode(CENTER);
     //rect(orgin.x, orgin.y, vectorfield_segment_d, vectorfield_segment_d);
