@@ -23,16 +23,18 @@ Particle part;
 ArrayList < Particle > particles;
 
 int particles_count;
-int particles_lx, particles_ly;
 int particles_birthrate = 1;
 int particles_size = 1;
 int particles_streams = 100;
+int particles_streams_circle;
 int particles_lifespan = 100;
 int particles_saturation_min = 127;
 int particles_saturation_max = 255;
-float particles_speed = 12;
-boolean particles_square = false;
-boolean particles_circle = true;
+float particles_speed = 10;
+float particles_lx, particles_ly;
+boolean particles_square = true;
+boolean particles_circle = false;
+boolean particles_pulse = false;
 PVector paricles_circle = new PVector();
 float particles_circle_r;
 
@@ -44,7 +46,7 @@ boolean targets_display = false;
 int theme = 0;
 
 void setup() {
-  size(1800, 1000, P2D);
+  size(1200, 800, P2D);
   blendMode(ADD);
   textSize(9);
   gui();
@@ -58,10 +60,6 @@ void setup() {
 void draw() {
   control();
   record();
-  if (record_pdf) {
-    beginRecord(PDF, "\\export\\pdf\\frame-######.pdf");
-  }
-  background(0);
   field();
   targets();
   particles();
@@ -103,9 +101,9 @@ void gui() {
   cp5.addSlider("vectorfield_segment_nx", 5, 300, cp5_x, cp5_d[0], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
   cp5.addSlider("vectorfield_segment_delay", 0, 0.1, cp5_x, cp5_d[1], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
   cp5.addSlider("particles_birthrate", 1, 60, cp5_x, cp5_d[2], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
-  cp5.addSlider("particles_streams", 1, 1000, cp5_x, cp5_d[3], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
+  cp5.addSlider("particles_streams", 1, 300, cp5_x, cp5_d[3], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
   cp5.addSlider("particles_lifespan", 1, 200, cp5_x, cp5_d[4], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
-  cp5.addSlider("particles_speed", 1, 30, cp5_x, cp5_d[5], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
+  cp5.addSlider("particles_speed", -10, 30, cp5_x, cp5_d[5], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
   cp5.addSlider("particles_size", 1, 20, cp5_x, cp5_d[6], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
 
   cp5.addRange("PARTICLES_SATURATION")
@@ -124,6 +122,8 @@ void gui() {
   cp5.addToggle("particles_square", cp5_w - 65, cp5_d[8] + cp5_h, 40, 20).setCaptionLabel("SQUARE")
     .getCaptionLabel().align(CENTER, CENTER);
   cp5.addToggle("particles_circle", cp5_w - 20, cp5_d[8] + cp5_h, 40, 20).setCaptionLabel("CIRCLE")
+    .getCaptionLabel().align(CENTER, CENTER);
+  cp5.addBang("particles_pulse", cp5_w - 20, cp5_d[8] + cp5_h * 3, 40, 20).setCaptionLabel("PULSE")
     .getCaptionLabel().align(CENTER, CENTER);
 
   cp5_d[9] = cp5_d[8] + 80;
@@ -200,31 +200,28 @@ void particles() {
   if (particles_count == particles_birthrate) {
     particles_count = 0;
     if (particles_square == true) {
+      particles_ly = ((height - 2 * vectorfield_segment_d) / particles_streams);
+      particles_lx = particles_ly;
       for (int i = 0; i <= particles_streams; i++) {
         particles.add(new Particle(border_left + vectorfield_segment_d, vectorfield_segment_d + particles_ly * i, particles_lifespan, color_a)); // left
-      }
-      for (int i = 0; i <= particles_streams; i++) {
         particles.add(new Particle(width - vectorfield_segment_d, vectorfield_segment_d + particles_ly * i, particles_lifespan, color_b)); // right
-      }
-      for (int i = 0; i <= particles_streams; i++) {
         particles.add(new Particle(border_left + vectorfield_segment_d + particles_lx * i, vectorfield_segment_d, particles_lifespan, color_c)); // top
-      }
-      for (int i = 0; i <= particles_streams; i++) {
         particles.add(new Particle(border_left + vectorfield_segment_d + particles_lx * i, height - vectorfield_segment_d, particles_lifespan, color_d)); // bottom
       }
     }
     if (particles_circle == true) {
       particles_circle_r = height / 2 - vectorfield_segment_d;
-      for (int i = 0; i <= particles_streams; i++) {
-        paricles_circle.x = border_left + height / 2 + particles_circle_r * cos((PI * i * 2) / (particles_streams));
-        paricles_circle.y = height / 2 - particles_circle_r * sin((PI * i * 2) / (particles_streams));
-        if (i >= 0 && i < particles_streams / 3) {
+      particles_streams_circle = 4 * particles_streams;
+      for (int i = 0; i <= particles_streams_circle; i++) {
+        paricles_circle.x = border_left + height / 2 + particles_circle_r * cos((PI * i * 2) / (particles_streams_circle));
+        paricles_circle.y = height / 2 - particles_circle_r * sin((PI * i * 2) / (particles_streams_circle));
+        if (i >= 0 && i < particles_streams_circle / 3) {
           particles.add(new Particle(paricles_circle.x, paricles_circle.y, particles_lifespan, color_a));
         }
-        if (i >= particles_streams / 3 && i < particles_streams / 3 * 2) {
+        if (i >= particles_streams_circle / 3 && i < particles_streams_circle / 3 * 2) {
           particles.add(new Particle(paricles_circle.x, paricles_circle.y, particles_lifespan, color_b));
         }
-        if (i > particles_streams / 3 * 2 && i <= particles_streams) {
+        if (i >= particles_streams_circle / 3 * 2 && i < particles_streams_circle) {
           particles.add(new Particle(paricles_circle.x, paricles_circle.y, particles_lifespan, color_c));
         }
       }
@@ -238,6 +235,9 @@ void particles() {
     }
   }
   for (Particle particles: particles) {
+    if (particles_pulse) {
+      particles.pulse();
+    }
     particles.update();
     particles.lifespan();
     particles.display();
@@ -251,18 +251,12 @@ void field() {
     for (int i = vectors.size() - 1; i >= 0; i--) {
       vectors.remove(i);
     }
-
     if (height % vectorfield_segment_ny > 0) {
       vectorfield_segment_nx++;
     }
-
     vectorfield_segment_d = height / vectorfield_segment_nx;
     vectorfield_segment_r = vectorfield_segment_d / 2;
     vectorfield_maxDist = sqrt(2 * sq((vectorfield_segment_nx - 1) * vectorfield_segment_d));
-
-    particles_ly = int((height - 2 * vectorfield_segment_d) / particles_streams);
-    particles_lx = particles_ly;
-
     for (int i = 0; i < vectorfield_segment_ny; i++) {
       for (int j = 0; j < vectorfield_segment_nx; j++) {
         vectorfield_segment_pos.x = border_left + j * vectorfield_segment_d + vectorfield_segment_r;
@@ -304,6 +298,13 @@ void record() {
   if (keyPressed && key == 's') {
     record_pdf = true;
   }
+  if (record_pdf) {
+    beginRecord(PDF, "\\export\\pdf\\frame-######.pdf");
+  }
+  background(0);
+  fill(50);
+  rectMode(CORNER);
+  rect(border_left, 0, height, height);
 }
 
 class Target {
@@ -442,8 +443,18 @@ class Particle {
 
   float dist;
   int active, lifespan, lifespan_start, lifespan_range, saturation;
+
   color argb;
   int a, r, g, b;
+
+  int pulse_time_cnt;
+  float particles_speed_save;
+  float pulse_speed;
+  float pulse_speed_min = 0.1;
+  float pulse_speed_max = 20;
+  float pulse_time_a = 20;
+  float pulse_time_b = 20;
+  float pulse_time_tot;
 
   Particle(float x, float y, int l, color c) {
     pos.x = x;
@@ -451,6 +462,23 @@ class Particle {
     lifespan = l;
     lifespan_start = l;
     argb = c;
+    particles_speed_save = particles_speed;
+    pulse_time_tot = pulse_time_a + pulse_time_b;
+  }
+
+  void pulse() {
+    pulse_time_cnt++;
+    if (pulse_time_cnt <= pulse_time_a) {
+      pulse_speed = pulse_speed_min - particles_speed;
+    }
+    if (pulse_time_cnt > pulse_time_a && pulse_time_cnt <= pulse_time_tot) {
+      pulse_speed = particles_speed - (pulse_speed_max - particles_speed) / (pulse_time_b * (pulse_time_cnt - pulse_time_a));
+    }
+    if (pulse_time_cnt == pulse_time_tot) {
+      pulse_speed = 0;
+      pulse_time_cnt = 0;
+      particles_pulse = false;
+    }
   }
 
   void update() {
@@ -460,7 +488,7 @@ class Particle {
       aclr.add(vctr.force);
     }
     force = PVector.sub(pos, aclr);
-    aclr.setMag(particles_speed);
+    aclr.setMag(particles_speed + pulse_speed);
     pos.add(aclr);
   }
 
@@ -472,20 +500,19 @@ class Particle {
   }
 
   void display() {
-    lifespan_range = int(map(lifespan, 0, lifespan_start, 255, 0));
-    if (lifespan_range < particles_saturation_min || lifespan_range > particles_saturation_max) {
-      saturation = 0;
-    } else {
-      saturation = int(map(lifespan_range, particles_saturation_min, particles_saturation_max, 0, 255));
-    }
+      lifespan_range = int(map(lifespan, 0, lifespan_start, 255, 0));
+      if (lifespan_range < particles_saturation_min || lifespan_range > particles_saturation_max) {
+        saturation = 0;
+      } else {
+        saturation = int(map(lifespan_range, particles_saturation_min, particles_saturation_max, 0, 255));
+      }
 
-    a = saturation;
-    r = (argb >> 16) & 0xFF;
-    g = (argb >> 8) & 0xFF;
-    b = argb & 0xFF;
-    noStroke();
-    fill(r, g, b, a);
-    rectMode(CENTER);
-    rect(pos.x, pos.y, particles_size, particles_size);
-  }
+      a = saturation;
+      r = (argb >> 16) & 0xFF;
+      g = (argb >> 8) & 0xFF;
+      b = argb & 0xFF;
+      noStroke();
+      fill(r, g, b, a);
+      rectMode(CENTER);
+      rect(pos.x, pos.y, particles_size, particles_size); }
 }
