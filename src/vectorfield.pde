@@ -1,4 +1,8 @@
-// Sphere (concept vector field), David Herren, 2018
+// SPHERE (Concept vector field)
+// Created 2018 by David Herren
+// https://davidherren.ch
+// https://github.com/herdav/sphere
+// Licensed under the MIT License
 // ----------------------------------------------------------------------
 
 import controlP5.*;
@@ -12,7 +16,7 @@ float vectorfield_segment_d, vectorfield_segment_r, vectorfield_maxDist;
 float vectorfield_segment_delay = 0.03;
 int vectorfield_segment_nx = 50;
 int vectorfield_segment_ny;
-int vectorfield_segment_n;
+int vectorfield_segment_n, vectorfield_segment_n_max = 300;
 
 // TARGETS --------------------------------------------------------------
 Target targt;
@@ -42,30 +46,38 @@ PVector paricles_birth_circle_pos = new PVector();
 
 // GUI & CONTROLS -------------------------------------------------------
 ControlP5 cp5;
-int border_left;
 color color_a, color_b, color_c, color_d;
 boolean controls_show = true;
 boolean record_pdf = true;
+boolean background_display = false;
+int background_color = 0;
 boolean targets_display = false;
 int theme = 0;
+int field_height = 800;
+int field_width = field_height;
+int field_border_left, field_border_top, field_border_bot;
+PVector field_centre = new PVector();
 
 void setup() {
   size(1400, 900, P2D);
+  //fullScreen();
   blendMode(ADD);
   textSize(9);
-  gui();
-  border_left = width - height;
+  fieldsize();
   vectors = new ArrayList < Vectorfield > ();
   particles = new ArrayList < Particle > ();
   targets = new ArrayList < Target > ();
-  targets.add(new Target(border_left + (width - border_left) / 2, height / 2));
+  targets.add(new Target(field_centre.x, field_centre.y));
+  gui();
 }
+
+
 
 void draw() {
   control();
   record();
-  field();
   targets();
+  field();
   particles();
   data();
   if (record_pdf) {
@@ -74,11 +86,18 @@ void draw() {
   }
 }
 
+void fieldsize() {
+  field_border_left = width - field_width;
+  field_border_top = int((height - field_height) / 2);
+  field_border_bot = field_border_top;
+  field_centre.x = field_width / 2 + field_border_left;
+  field_centre.y = field_height / 2 + field_border_top;
+}
+
 void gui() {
   int cp5_w = 220;
   int cp5_h = 14;
   int cp5_x = 20;
-  int cp5_y = 20;
   int[] cp5_d = new int[20];
 
   for (int i = 0; i < cp5_d.length; i++) {
@@ -91,7 +110,7 @@ void gui() {
     .setColorForeground(color(100))
     .setColorActive(color(150));
 
-  ButtonBar themes = cp5.addButtonBar("theme")
+  cp5.addButtonBar("theme")
     .setPosition(20, 20)
     .setSize(cp5_w, cp5_h)
     .addItems(split("1 2 3 4 5", " "))
@@ -102,24 +121,15 @@ void gui() {
     });
 
   // name, minValue, maxValue, x, y, width, height
-  cp5.addSlider("vectorfield_segment_nx", 5, 300, cp5_x, cp5_d[0], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
-  cp5.addSlider("vectorfield_segment_delay", 0, 0.1, cp5_x, cp5_d[1], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
-  cp5.addSlider("particles_birthrate", 1, 60, cp5_x, cp5_d[2], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
-  cp5.addSlider("particles_streams", 1, 300, cp5_x, cp5_d[3], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
-  cp5.addSlider("particles_lifespan", 1, 200, cp5_x, cp5_d[4], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
-  cp5.addSlider("particles_speed", -10, 30, cp5_x, cp5_d[5], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
-  cp5.addSlider("particles_size", 1, 20, cp5_x, cp5_d[6], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
+  cp5.addSlider("vectorfield_segment_nx", 5, vectorfield_segment_n_max, cp5_x, cp5_d[1], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
+  cp5.addSlider("vectorfield_segment_delay", 0, 0.1, cp5_x, cp5_d[2], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
+  cp5.addSlider("particles_birthrate", 1, 60, cp5_x, cp5_d[3], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
+  cp5.addSlider("particles_streams", 1, 300, cp5_x, cp5_d[4], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
+  cp5.addSlider("particles_lifespan", 1, 200, cp5_x, cp5_d[5], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
+  cp5.addSlider("particles_speed", -2, 30, cp5_x, cp5_d[6], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
+  cp5.addSlider("particles_size", 1, 20, cp5_x, cp5_d[7], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
 
   cp5.addRange("PARTICLES_SATURATION_SCOPE")
-    .setBroadcast(false)
-    .setPosition(cp5_x, cp5_d[7])
-    .setSize(cp5_w, cp5_h)
-    .setHandleSize(5)
-    .setRange(0, 255)
-    .setRangeValues(particles_saturation_min, particles_saturation_max)
-    .setBroadcast(true);
-
-  cp5.addRange("PARTICLES_SATURATION_LIMIT")
     .setBroadcast(false)
     .setPosition(cp5_x, cp5_d[8])
     .setSize(cp5_w, cp5_h)
@@ -128,25 +138,39 @@ void gui() {
     .setRangeValues(particles_saturation_min, particles_saturation_max)
     .setBroadcast(true);
 
-  cp5.addSlider("particles_birth_circle_r", 1, height / 2 - 20, cp5_x, cp5_d[9], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE)
+  cp5.addRange("PARTICLES_SATURATION_LIMIT")
+    .setBroadcast(false)
+    .setPosition(cp5_x, cp5_d[9])
+    .setSize(cp5_w, cp5_h)
+    .setHandleSize(5)
+    .setRange(0, 255)
+    .setRangeValues(particles_saturation_min, particles_saturation_max)
+    .setBroadcast(true);
+
+  cp5.addSlider("particles_birth_circle_r", 1, field_height / 2 - 20, cp5_x, cp5_d[10], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE)
     .setCaptionLabel("BIRTH_SIZE")
-    .setValue(height / 2 - vectorfield_segment_d);
+    .setValue(field_height / 2 - vectorfield_segment_d);
 
-  cp5_d[10] = cp5_d[9] + cp5_h / 2;
+  cp5.addSlider("background_color", 0, 255, cp5_x, cp5_d[11], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE)
+    .setValue(100);
 
-  cp5.addToggle("targets_display", 20, cp5_d[10] + cp5_h, 40, 20).setCaptionLabel("TARGETS")
+  cp5_d[12] = cp5_d[11] + cp5_h / 2;
+
+  cp5.addToggle("targets_display", 20, cp5_d[12] + cp5_h, 40, 20).setCaptionLabel("TARGETS")
     .getCaptionLabel().align(CENTER, CENTER);
-  cp5.addToggle("particles_birth_square", cp5_w - 65, cp5_d[10] + cp5_h, 40, 20).setCaptionLabel("SQUARE")
+  cp5.addToggle("background_display", 20, cp5_d[12] + cp5_h * 3, 40, 20).setCaptionLabel("FOIL")
     .getCaptionLabel().align(CENTER, CENTER);
-  cp5.addToggle("particles_birth_circle", cp5_w - 20, cp5_d[10] + cp5_h, 40, 20).setCaptionLabel("CIRCLE")
+  cp5.addToggle("particles_birth_square", cp5_w - 65, cp5_d[12] + cp5_h, 40, 20).setCaptionLabel("SQUARE")
     .getCaptionLabel().align(CENTER, CENTER);
-  cp5.addBang("particles_pulse", cp5_w - 20, cp5_d[10] + cp5_h * 3, 40, 20).setCaptionLabel("PULSE")
+  cp5.addToggle("particles_birth_circle", cp5_w - 20, cp5_d[12] + cp5_h, 40, 20).setCaptionLabel("CIRCLE")
+    .getCaptionLabel().align(CENTER, CENTER);
+  cp5.addBang("particles_pulse", cp5_w - 20, cp5_d[12] + cp5_h * 3, 40, 20).setCaptionLabel("PULSE")
     .getCaptionLabel().align(CENTER, CENTER);
 
-  cp5_d[11] = cp5_d[10] + 80;
+  cp5_d[14] = cp5_d[13] + 80;
 
   Group cp5_color = cp5.addGroup("COLOR")
-    .setPosition(cp5_x, cp5_d[11])
+    .setPosition(cp5_x, cp5_d[14])
     .setWidth(cp5_w)
     .setBackgroundHeight(250)
     .setBackgroundColor(color(255, 50));
@@ -180,10 +204,10 @@ void control() {
 }
 
 void mouseClicked() {
-  if (mouseButton == LEFT && mouseX > border_left) {
+  if (mouseButton == LEFT && mouseX > field_border_left) {
     targets.add(new Target(mouseX, mouseY));
   }
-  if (mouseButton == RIGHT && targets.size() > 1 && mouseX > border_left) {
+  if (mouseButton == RIGHT && targets.size() > 1 && mouseX > field_border_left) {
     for (int i = targets.size() - 1; i > 0; i--) {
       targets.remove(i);
     }
@@ -191,7 +215,7 @@ void mouseClicked() {
 }
 
 void targets() {
-  if (mouseX >= border_left) {
+  if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) {
     if (targets_removed) {
       targets.get(0).update(mouseX, mouseY);
       targets_removed = false;
@@ -199,9 +223,9 @@ void targets() {
       targets.get(0).update(mouseX, mouseY);
     }
   }
-  if (mouseX < border_left) {
+  if (mouseX < field_border_left || mouseY < field_border_top || mouseY > height - field_border_bot) {
     if (targets.size() == 1) {
-      targets.get(0).update((width - border_left) / 2 + border_left, height / 2);
+      targets.get(0).update(field_centre.x, field_centre.y);
     }
     if (targets.size() > 1 && targets_removed == false) {
       targets.remove(0);
@@ -221,21 +245,20 @@ void particles() {
   if (particles_count == particles_birthrate) {
     particles_count = 0;
     if (particles_birth_square == true) {
-      particles_ly = ((height - 2 * vectorfield_segment_d) / particles_streams);
+      particles_ly = ((field_height - 2 * vectorfield_segment_d) / particles_streams);
       particles_lx = particles_ly;
       for (int i = 0; i <= particles_streams; i++) {
-        particles.add(new Particle(border_left + vectorfield_segment_d, vectorfield_segment_d + particles_ly * i, particles_lifespan, color_a)); // left
-        particles.add(new Particle(width - vectorfield_segment_d, vectorfield_segment_d + particles_ly * i, particles_lifespan, color_b)); // right
-        particles.add(new Particle(border_left + vectorfield_segment_d + particles_lx * i, vectorfield_segment_d, particles_lifespan, color_c)); // top
-        particles.add(new Particle(border_left + vectorfield_segment_d + particles_lx * i, height - vectorfield_segment_d, particles_lifespan, color_d)); // bottom
+        particles.add(new Particle(field_border_left + vectorfield_segment_d, field_border_top + vectorfield_segment_d + particles_ly * i, particles_lifespan, color_a)); // left
+        particles.add(new Particle(width - vectorfield_segment_d, field_border_top + vectorfield_segment_d + particles_ly * i, particles_lifespan, color_b)); // right
+        particles.add(new Particle(field_border_left + vectorfield_segment_d + particles_lx * i, field_border_top + vectorfield_segment_d, particles_lifespan, color_c)); // top
+        particles.add(new Particle(field_border_left + vectorfield_segment_d + particles_lx * i, height - field_border_bot - vectorfield_segment_d, particles_lifespan, color_d)); // bottom
       }
     }
     if (particles_birth_circle == true) {
-      //particles_birth_circle_r = height / 2 - vectorfield_segment_d;
       particles_streams_circle = 4 * particles_streams;
       for (int i = 0; i <= particles_streams_circle; i++) {
-        paricles_birth_circle_pos.x = border_left + height / 2 + particles_birth_circle_r * cos((PI * i * 2) / (particles_streams_circle));
-        paricles_birth_circle_pos.y = height / 2 - particles_birth_circle_r * sin((PI * i * 2) / (particles_streams_circle));
+        paricles_birth_circle_pos.x = field_centre.x + particles_birth_circle_r * cos((PI * i * 2) / (particles_streams_circle));
+        paricles_birth_circle_pos.y = field_centre.y - particles_birth_circle_r * sin((PI * i * 2) / (particles_streams_circle));
         if (i >= 0 && i < particles_streams_circle / 3) {
           particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, particles_lifespan, color_a));
         }
@@ -272,16 +295,16 @@ void field() {
     for (int i = vectors.size() - 1; i >= 0; i--) {
       vectors.remove(i);
     }
-    if (height % vectorfield_segment_ny > 0) {
+    if (field_height % vectorfield_segment_ny > 0) {
       vectorfield_segment_nx++;
     }
-    vectorfield_segment_d = height / vectorfield_segment_nx;
+    vectorfield_segment_d = field_height / vectorfield_segment_nx;
     vectorfield_segment_r = vectorfield_segment_d / 2;
     vectorfield_maxDist = sqrt(2 * sq((vectorfield_segment_nx - 1) * vectorfield_segment_d));
     for (int i = 0; i < vectorfield_segment_ny; i++) {
       for (int j = 0; j < vectorfield_segment_nx; j++) {
-        vectorfield_segment_pos.x = border_left + j * vectorfield_segment_d + vectorfield_segment_r;
-        vectorfield_segment_pos.y = i * vectorfield_segment_d + vectorfield_segment_r;
+        vectorfield_segment_pos.x = field_border_left + j * vectorfield_segment_d + vectorfield_segment_r;
+        vectorfield_segment_pos.y = field_border_top + i * vectorfield_segment_d + vectorfield_segment_r;
         vectors.add(new Vectorfield(vectorfield_segment_pos));
       }
     }
@@ -323,9 +346,12 @@ void record() {
     beginRecord(PDF, "\\export\\pdf\\frame-######.pdf");
   }
   background(0);
-  /*fill(100);
-  rectMode(CORNER);
-  rect(border_left, 0, height, height);*/
+
+  if (background_display) {
+    fill(background_color);
+    rectMode(CORNER);
+    rect(field_border_left, field_border_top, field_height, field_height);
+  }
 }
 
 class Target {
@@ -503,7 +529,7 @@ class Particle {
   }
 
   void update() {
-    active = int(round(pos.y / vectorfield_segment_d) * vectorfield_segment_ny + round((pos.x - border_left) / vectorfield_segment_d)); // detect active vector
+    active = int(round((pos.y - field_border_top) / vectorfield_segment_d) * vectorfield_segment_ny + round((pos.x - field_border_left) / vectorfield_segment_d)); // detect active vector
     if (active >= 0 && active < vectors.size()) {
       Vectorfield vctr = vectors.get(active);
       aclr.add(vctr.force);
@@ -515,7 +541,7 @@ class Particle {
 
   void lifespan() {
     lifespan--;
-    if (pos.x <= vectorfield_segment_d + border_left || pos.x >= width - vectorfield_segment_d || pos.y <= vectorfield_segment_d || pos.y >= height - vectorfield_segment_d) {
+    if (pos.x <= vectorfield_segment_d + field_border_left || pos.x >= width - vectorfield_segment_d || pos.y <= field_border_top + vectorfield_segment_d || pos.y >= height - field_border_bot - vectorfield_segment_d) {
       lifespan = 0;
     }
   }
