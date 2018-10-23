@@ -1,13 +1,12 @@
 // Sphere (concept vector field), David Herren, 2018
+// ----------------------------------------------------------------------
 
 import controlP5.*;
 import processing.pdf.*;
 
-ControlP5 cp5;
-
+// VECTORFIELD ----------------------------------------------------------
 Vectorfield vctr;
 ArrayList < Vectorfield > vectors;
-
 PVector vectorfield_segment_pos = new PVector();
 float vectorfield_segment_d, vectorfield_segment_r, vectorfield_maxDist;
 float vectorfield_segment_delay = 0.03;
@@ -15,13 +14,14 @@ int vectorfield_segment_nx = 50;
 int vectorfield_segment_ny;
 int vectorfield_segment_n;
 
+// TARGETS --------------------------------------------------------------
 Target targt;
 ArrayList < Target > targets;
 boolean targets_removed = false;
 
+// PARTICLES ------------------------------------------------------------
 Particle part;
 ArrayList < Particle > particles;
-
 int particles_count;
 int particles_birthrate = 1;
 int particles_size = 1;
@@ -30,14 +30,18 @@ int particles_streams_circle;
 int particles_lifespan = 100;
 int particles_saturation_min = 127;
 int particles_saturation_max = 255;
-float particles_speed = 10;
+int particles_saturation_min_limit = 0;
+int particles_saturation_max_limit = 255;
+float particles_speed = 8;
 float particles_lx, particles_ly;
-boolean particles_square = true;
-boolean particles_circle = false;
+boolean particles_birth_square = false;
 boolean particles_pulse = false;
-PVector paricles_circle = new PVector();
-float particles_circle_r;
+boolean particles_birth_circle = true;
+float particles_birth_circle_r;
+PVector paricles_birth_circle_pos = new PVector();
 
+// GUI & CONTROLS -------------------------------------------------------
+ControlP5 cp5;
 int border_left;
 color color_a, color_b, color_c, color_d;
 boolean controls_show = true;
@@ -46,7 +50,7 @@ boolean targets_display = false;
 int theme = 0;
 
 void setup() {
-  size(1200, 800, P2D);
+  size(1400, 900, P2D);
   blendMode(ADD);
   textSize(9);
   gui();
@@ -106,7 +110,7 @@ void gui() {
   cp5.addSlider("particles_speed", -10, 30, cp5_x, cp5_d[5], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
   cp5.addSlider("particles_size", 1, 20, cp5_x, cp5_d[6], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE);
 
-  cp5.addRange("PARTICLES_SATURATION")
+  cp5.addRange("PARTICLES_SATURATION_SCOPE")
     .setBroadcast(false)
     .setPosition(cp5_x, cp5_d[7])
     .setSize(cp5_w, cp5_h)
@@ -115,21 +119,34 @@ void gui() {
     .setRangeValues(particles_saturation_min, particles_saturation_max)
     .setBroadcast(true);
 
-  cp5_d[8] = cp5_d[7] + cp5_h / 2;
+  cp5.addRange("PARTICLES_SATURATION_LIMIT")
+    .setBroadcast(false)
+    .setPosition(cp5_x, cp5_d[8])
+    .setSize(cp5_w, cp5_h)
+    .setHandleSize(5)
+    .setRange(0, 255)
+    .setRangeValues(particles_saturation_min, particles_saturation_max)
+    .setBroadcast(true);
 
-  cp5.addToggle("targets_display", 20, cp5_d[8] + cp5_h, 40, 20).setCaptionLabel("TARGETS")
+  cp5.addSlider("particles_birth_circle_r", 1, height / 2 - 20, cp5_x, cp5_d[9], cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE)
+    .setCaptionLabel("BIRTH_SIZE")
+    .setValue(height / 2 - vectorfield_segment_d);
+
+  cp5_d[10] = cp5_d[9] + cp5_h / 2;
+
+  cp5.addToggle("targets_display", 20, cp5_d[10] + cp5_h, 40, 20).setCaptionLabel("TARGETS")
     .getCaptionLabel().align(CENTER, CENTER);
-  cp5.addToggle("particles_square", cp5_w - 65, cp5_d[8] + cp5_h, 40, 20).setCaptionLabel("SQUARE")
+  cp5.addToggle("particles_birth_square", cp5_w - 65, cp5_d[10] + cp5_h, 40, 20).setCaptionLabel("SQUARE")
     .getCaptionLabel().align(CENTER, CENTER);
-  cp5.addToggle("particles_circle", cp5_w - 20, cp5_d[8] + cp5_h, 40, 20).setCaptionLabel("CIRCLE")
+  cp5.addToggle("particles_birth_circle", cp5_w - 20, cp5_d[10] + cp5_h, 40, 20).setCaptionLabel("CIRCLE")
     .getCaptionLabel().align(CENTER, CENTER);
-  cp5.addBang("particles_pulse", cp5_w - 20, cp5_d[8] + cp5_h * 3, 40, 20).setCaptionLabel("PULSE")
+  cp5.addBang("particles_pulse", cp5_w - 20, cp5_d[10] + cp5_h * 3, 40, 20).setCaptionLabel("PULSE")
     .getCaptionLabel().align(CENTER, CENTER);
 
-  cp5_d[9] = cp5_d[8] + 80;
+  cp5_d[11] = cp5_d[10] + 80;
 
   Group cp5_color = cp5.addGroup("COLOR")
-    .setPosition(cp5_x, cp5_d[9])
+    .setPosition(cp5_x, cp5_d[11])
     .setWidth(cp5_w)
     .setBackgroundHeight(250)
     .setBackgroundColor(color(255, 50));
@@ -141,9 +158,13 @@ void gui() {
 }
 
 void controlEvent(ControlEvent theControlEvent) {
-  if (theControlEvent.isFrom("PARTICLES_SATURATION")) {
+  if (theControlEvent.isFrom("PARTICLES_SATURATION_SCOPE")) {
     particles_saturation_min = int(theControlEvent.getController().getArrayValue(0));
     particles_saturation_max = int(theControlEvent.getController().getArrayValue(1));
+  }
+  if (theControlEvent.isFrom("PARTICLES_SATURATION_LIMIT")) {
+    particles_saturation_min_limit = int(theControlEvent.getController().getArrayValue(0));
+    particles_saturation_max_limit = int(theControlEvent.getController().getArrayValue(1));
   }
 }
 
@@ -199,7 +220,7 @@ void particles() {
   particles_count++;
   if (particles_count == particles_birthrate) {
     particles_count = 0;
-    if (particles_square == true) {
+    if (particles_birth_square == true) {
       particles_ly = ((height - 2 * vectorfield_segment_d) / particles_streams);
       particles_lx = particles_ly;
       for (int i = 0; i <= particles_streams; i++) {
@@ -209,20 +230,20 @@ void particles() {
         particles.add(new Particle(border_left + vectorfield_segment_d + particles_lx * i, height - vectorfield_segment_d, particles_lifespan, color_d)); // bottom
       }
     }
-    if (particles_circle == true) {
-      particles_circle_r = height / 2 - vectorfield_segment_d;
+    if (particles_birth_circle == true) {
+      //particles_birth_circle_r = height / 2 - vectorfield_segment_d;
       particles_streams_circle = 4 * particles_streams;
       for (int i = 0; i <= particles_streams_circle; i++) {
-        paricles_circle.x = border_left + height / 2 + particles_circle_r * cos((PI * i * 2) / (particles_streams_circle));
-        paricles_circle.y = height / 2 - particles_circle_r * sin((PI * i * 2) / (particles_streams_circle));
+        paricles_birth_circle_pos.x = border_left + height / 2 + particles_birth_circle_r * cos((PI * i * 2) / (particles_streams_circle));
+        paricles_birth_circle_pos.y = height / 2 - particles_birth_circle_r * sin((PI * i * 2) / (particles_streams_circle));
         if (i >= 0 && i < particles_streams_circle / 3) {
-          particles.add(new Particle(paricles_circle.x, paricles_circle.y, particles_lifespan, color_a));
+          particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, particles_lifespan, color_a));
         }
         if (i >= particles_streams_circle / 3 && i < particles_streams_circle / 3 * 2) {
-          particles.add(new Particle(paricles_circle.x, paricles_circle.y, particles_lifespan, color_b));
+          particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, particles_lifespan, color_b));
         }
         if (i >= particles_streams_circle / 3 * 2 && i < particles_streams_circle) {
-          particles.add(new Particle(paricles_circle.x, paricles_circle.y, particles_lifespan, color_c));
+          particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, particles_lifespan, color_c));
         }
       }
     }
@@ -302,9 +323,9 @@ void record() {
     beginRecord(PDF, "\\export\\pdf\\frame-######.pdf");
   }
   background(0);
-  fill(50);
+  /*fill(100);
   rectMode(CORNER);
-  rect(border_left, 0, height, height);
+  rect(border_left, 0, height, height);*/
 }
 
 class Target {
@@ -500,19 +521,21 @@ class Particle {
   }
 
   void display() {
-      lifespan_range = int(map(lifespan, 0, lifespan_start, 255, 0));
-      if (lifespan_range < particles_saturation_min || lifespan_range > particles_saturation_max) {
-        saturation = 0;
-      } else {
-        saturation = int(map(lifespan_range, particles_saturation_min, particles_saturation_max, 0, 255));
-      }
+    lifespan_range = int(map(lifespan, 0, lifespan_start, 255, 0));
+    if (lifespan_range < particles_saturation_min || lifespan_range > particles_saturation_max) {
+      saturation = particles_saturation_min_limit;
+    } else {
+      saturation = int(map(lifespan_range, particles_saturation_min, particles_saturation_max, particles_saturation_min_limit, particles_saturation_max_limit));
+    }
 
-      a = saturation;
-      r = (argb >> 16) & 0xFF;
-      g = (argb >> 8) & 0xFF;
-      b = argb & 0xFF;
-      noStroke();
-      fill(r, g, b, a);
-      rectMode(CENTER);
-      rect(pos.x, pos.y, particles_size, particles_size); }
+    a = saturation;
+    r = (argb >> 16) & 0xFF;
+    g = (argb >> 8) & 0xFF;
+    b = argb & 0xFF;
+
+    noStroke();
+    fill(r, g, b, a);
+    rectMode(CENTER);
+    rect(pos.x, pos.y, particles_size, particles_size);
+  }
 }
