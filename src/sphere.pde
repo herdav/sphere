@@ -10,8 +10,8 @@ import processing.pdf.*;
 import processing.serial.*;
 
 // SERIAL COMMUNICATION -------------------------------------------------
-boolean stream_port_on = true; // set to true when port is connected
 
+boolean stream_port_on = false;
 Serial stream_port;
 String stream_data, stream_data_eff;
 float[] stream_data_val;
@@ -20,13 +20,13 @@ stream_data_magni_u, stream_data_stp_yaw, stream_data_stp_cnt,
 stream_data_poti, stream_data_rpm, stream_data_angle_stp,
 stream_data_angle_rot;
 int stream_data_fctr = 1000;
+int lf = 10; // ASCII linefeed
 
 // POINTER --------------------------------------------------------------
 Pointer pointer_yaw, pointer_x_axis, pointer_y_axis, pointer_stp;
 Pointer pointer_targets;
 PVector pointer_rstr = new PVector();
-color pointer_gray = color(150);
-color pointer_brgt = color(255);
+
 boolean pointer_control = false;
 
 // VECTORFIELD ----------------------------------------------------------
@@ -85,14 +85,18 @@ int field_border_left, field_border_top, field_border_bot;
 PVector field_center = new PVector();
 
 void setup() {
-  size(1700, 900, P3D);
-  //fullScreen(P3D);
+  size(1800, 900, P2D);
+  //fullScreen(P2D);
   blendMode(ADD);
 
-  if (stream_port_on) {
+  String[] ports = Serial.list();
+  if (ports.length == 0) println("No ports found!");
+  if (ports.length != 0) {
     String portName = Serial.list()[0];
-    stream_port = new Serial(this, "COM3", 9600);
-    stream_port.bufferUntil('\n');
+    stream_port = new Serial(this, portName, 9600);
+    stream_port.bufferUntil(lf);
+    stream_port_on = true;
+    println("Device is connected to " + portName + '.');
   }
 
   fieldsize();
@@ -115,7 +119,6 @@ void setup() {
 }
 
 void draw() {
-  if (stream_port_on) stream();
   control();
   record();
   targets();
@@ -126,8 +129,9 @@ void draw() {
   if (pointer_control) pointer();
 }
 
-void stream() {
-  if (stream_port.available() > 0 && stream_data.charAt(0) == '!') {
+void serialEvent(Serial stream_port) {
+  stream_data = stream_port.readString();
+  if (stream_data.charAt(0) == '!') {
     stream_data_eff = stream_data.substring(stream_data.indexOf('!') + 1, stream_data.indexOf('#'));
     stream_data_val = float(split(stream_data_eff, ' '));
     stream_data_angle_x = stream_data_val[0] / stream_data_fctr;
@@ -138,44 +142,44 @@ void stream() {
     stream_data_stp_cnt = stream_data_val[5];
     stream_data_rpm = stream_data_val[6];
     stream_data_poti = stream_data_val[7];
+
+    if (stream_data_angle_u >= 0 && stream_data_angle_u < PI / 2) stream_data_angle_rot = stream_data_angle_u;
+    if (stream_data_angle_u >= PI / 2 && stream_data_angle_u < PI) stream_data_angle_rot = PI - stream_data_angle_u;
+    if (stream_data_angle_u >= PI && stream_data_angle_u < 2 / 3 * PI) stream_data_angle_rot = stream_data_angle_u - PI;
+    if (stream_data_angle_u >= 2 / 3 * PI && stream_data_angle_u < 2 * PI) stream_data_angle_rot = 2 * PI - stream_data_angle_u;
+
+    stream_data_angle_stp = 2 * PI / 600 * stream_data_stp_cnt;
+
+    //println("x:" + int(stream_data_angle_x * 180 / PI), "y:" + int(stream_data_angle_y * 180 / PI), "u:" + int(stream_data_angle_u * 180 / PI), "m:" + int(100 * stream_data_magni_u), "stp:" + int(stream_data_stp_yaw), "cnt:" + int(stream_data_stp_cnt), "speed:" + int(stream_data_rpm), "poti:" + int(stream_data_poti));
   }
-
-  if (stream_data_angle_u >= 0 && stream_data_angle_u < PI / 2) stream_data_angle_rot = stream_data_angle_u;
-  if (stream_data_angle_u >= PI / 2 && stream_data_angle_u < PI) stream_data_angle_rot = PI - stream_data_angle_u;
-  if (stream_data_angle_u >= PI && stream_data_angle_u < 2 / 3 * PI) stream_data_angle_rot = stream_data_angle_u - PI;
-  if (stream_data_angle_u >= 2 / 3 * PI && stream_data_angle_u < 2 * PI) stream_data_angle_rot = 2 * PI - stream_data_angle_u;
-
-  stream_data_angle_stp = 2 * PI / 600 * stream_data_stp_cnt;
-
-  // println("x:" + int(stream_data_angle_x * 180 / PI), "y:" + int(stream_data_angle_y * 180 / PI), "u:" + int(stream_data_angle_u * 180 / PI), "m:" + int(100 * stream_data_magni_u), "stp:" + int(stream_data_stp_yaw), "cnt:" + int(stream_data_stp_cnt), "speed:" + int(stream_data_rpm), "poti:" + int(stream_data_poti));
-}
-
-void serialEvent(Serial stream_port) {
-  stream_data = stream_port.readString();
 }
 
 void pointer() {
-  pointer_x_axis.needle(stream_data_angle_x, true);
+  pointer_x_axis.calculation(stream_data_angle_x, 1);
+  pointer_x_axis.needle(true);
   //pointer_x_axis.graph(30);
-  pointer_x_axis.magnitude(1, true);
+  pointer_x_axis.magnitude();
   pointer_x_axis.path(color(0, 255, 0, 200));
-  pointer_x_axis.info("x-axis");
+  pointer_x_axis.title("x-axis");
 
-  pointer_y_axis.needle(stream_data_angle_y, true);
+  pointer_y_axis.calculation(stream_data_angle_y, 1);
+  pointer_y_axis.needle(true);
   //pointer_y_axis.graph(30);
-  pointer_y_axis.magnitude(1, true);
+  pointer_y_axis.magnitude();
   pointer_y_axis.path(color(0, 255, 0, 200));
-  pointer_y_axis.info("y-axis");
+  pointer_y_axis.title("y-axis");
 
-  pointer_stp.needle(stream_data_angle_stp, true);
-  pointer_stp.magnitude(sqrt(sq(stream_data_rpm)) / 35, true);
+  pointer_stp.calculation(stream_data_angle_stp, sqrt(sq(stream_data_rpm)) / 35);
+  pointer_stp.needle(false);
+  pointer_stp.magnitude();
   pointer_stp.path(color(255, 0, 255, 200));
 
-  pointer_yaw.needle(stream_data_angle_rot, true);
+  pointer_yaw.calculation(stream_data_angle_rot, stream_data_magni_u);
+  pointer_yaw.needle(true);
   //pointer_yaw.graph(5);
-  pointer_yaw.magnitude(stream_data_magni_u, true);
+  pointer_yaw.magnitude();
   pointer_yaw.path(color(0, 255, 0, 200));
-  pointer_yaw.info("yaw-angle");
+  pointer_yaw.title("yaw-angle");
 }
 
 void fieldsize() {
@@ -339,15 +343,13 @@ void targets() {
     }
   }
   if (targets_pointer && stream_port_on) {
-    pointer_targets.needle(stream_data_angle_rot, false);
-    pointer_targets.magnitude(stream_data_magni_u, false);
+    pointer_targets.calculation(stream_data_angle_rot, stream_data_magni_u);
     targets.get(0).update(pointer_targets.p2.x, pointer_targets.p2.y);
   }
 
   for (Target targets: targets) {
     targets.update();
     if (targets_display) targets.display();
-
   }
 }
 
@@ -434,7 +436,7 @@ void data() {
     text("[s] : save frame as pdf\n" + "[q] : hide gui\n" + "[w] : show gui\n\n" +
       "FPS\n" + "VECTORS\n" + "PARTICLES\n" + "TARGETS\n\n" +
       year() + '/' + month() + '/' + day() + "\n\n" +
-      "Sphere (concept vector field)\n" + "David Herren", 20, height - 20);
+      "SPEHERE\n" + "David Herren", 20, height - 20);
 
     text(float(int(float(frameCount) / millis() * 10000)) / 10 + "\n" +
       vectors.size() + "\n" +
@@ -460,83 +462,80 @@ class Pointer {
   PVector p0 = new PVector();
   PVector p1 = new PVector();
   PVector p2 = new PVector();
-  PVector[] p3 = new PVector[1000];
-  int count2 = 0;
-
-  float d, a, a2, r;
-  int count = 0;
+  PVector[] p3 = new PVector[100];
+  float a, d, r;
+  int graph_count = 0;
+  int path_count = 0;
   float[] store;
+  color gray = color(50);
+  color brgt = color(255);
 
-  Pointer(float xpos, float ypos, float dTemp) {
-    p0.x = xpos;
-    p0.y = ypos;
-    d = dTemp;
+  Pointer(float x, float y, float diameter) {
+    p0.x = x;
+    p0.y = y;
+    d = diameter;
     r = d / 2;
     store = new float[int(d)];
     for (int i = 0; i < p3.length; i++) p3[i] = new PVector();
-
-
   }
 
-  void needle(float angle, boolean display) {
+  void calculation(float angle, float m) {
     a = angle;
     p1.x = p0.x + r * cos(a);
     p1.y = p0.y + r * sin(a);
+    p2.x = p0.x + r * cos(a) * m;
+    p2.y = p0.y + r * sin(a) * m;
+  }
 
-    if (display) {
-      noFill();
-      stroke(pointer_gray);
-      ellipse(p0.x, p0.y, d, d);
-      line(p0.x, p0.y - r, p0.x, p0.y + r); // vertical line
-      line(p0.x - r, p0.y, p0.x + r, p0.y); // horizontal line
-      stroke(pointer_brgt);
-      line(p0.x, p0.y, p1.x, p1.y);
+  void needle(boolean b) {
+    float s;
+    noFill();
+    stroke(gray);
+    if (b) ellipse(p0.x, p0.y, d, d);
+    line(p0.x, p0.y - r, p0.x, p0.y + r); // vertical line
+    line(p0.x - r, p0.y, p0.x + r, p0.y); // horizontal line
+    stroke(brgt);
+    line(p0.x, p0.y, p1.x, p1.y);
 
-      for (int i = 0; i <= 360; i += 30) {
-        a2 = i * PI / 180;
-        if (i % 90 > 0) {
-          stroke(pointer_gray);
-          line(p0.x + r * cos(a2), p0.y + r * sin(a2), p0.x + (r - 10) * cos(a2), p0.y + (r - 10) * sin(a2));
-        }
+    for (int i = 0; i <= 360; i += 30) {
+      s = i * PI / 180;
+      if (i % 90 > 0) {
+        stroke(gray);
+        line(p0.x + r * cos(s), p0.y + r * sin(s), p0.x + (r - 10) * cos(s), p0.y + (r - 10) * sin(s));
       }
     }
   }
 
-  void magnitude(float m, boolean display) {
-    p2.x = p0.x + r * m * cos(a);
-    p2.y = p0.y + r * m * sin(a);
-
-    if (display) {
-      noFill();
-      stroke(pointer_brgt);
-      ellipse(p2.x, p2.y, 8, 8);
-    }
+  void magnitude() {
+    noFill();
+    stroke(brgt);
+    ellipse(p2.x, p2.y, 8, 8);
   }
 
   void path(color c) {
-    count2++;
-    if (count2 == p3.length - 1) count2 = 0;
-    p3[count2].x = p2.x;
-    p3[count2].y = p2.y;
+    path_count++;
+    if (path_count == p3.length - 1) path_count = 0;
+    p3[path_count].x = p2.x;
+    p3[path_count].y = p2.y;
     noStroke();
     fill(c);
     for (int i = 0; i < p3.length; i++) ellipse(p3[i].x, p3[i].y, 2, 2);
   }
 
   void graph(int f) {
-    count++;
-    if (count == d - 1) count = 0;
-    store[count] = f * a;
-    stroke(pointer_gray);
+    graph_count++;
+    if (graph_count == d - 1) graph_count = 0;
+    store[graph_count] = f * a;
+    stroke(gray);
     for (int i = 0; i < store.length; i++) line(p0.x - r + i, p0.y + r + r / 1.5, p0.x - r + i, p0.y + r + r / 1.5 - store[i]);
 
   }
 
-  void info(String title) {
-    textSize(13);
+  void title(String t) {
+    textSize(9);
     fill(255);
     textAlign(CENTER, CENTER);
-    text(title + ": " + float(int(10 * a * 180 / PI)) / 10 + '°', p0.x, p0.y - r - r / 5);
+    text(t + ": " + float(int(10 * a * 180 / PI)) / 10 + '°', p0.x, p0.y - r - r / 5);
   }
 }
 
