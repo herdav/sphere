@@ -10,7 +10,6 @@ import processing.pdf.*;
 import processing.serial.*;
 
 // SERIAL COMMUNICATION -------------------------------------------------
-
 boolean stream_port_on = false;
 Serial stream_port;
 String stream_data, stream_data_eff;
@@ -50,19 +49,22 @@ ArrayList < Particle > particles;
 int particles_count;
 int particles_birthrate = 1;
 int particles_size = 1;
-int particles_streams = 100;
+int particles_streams = 10;
 int particles_streams_circle;
-int particles_lifespan = 100;
+int particles_lifespan = 40;
 int particles_saturation_min = 127;
 int particles_saturation_max = 255;
 int particles_saturation_min_limit = 0;
 int particles_saturation_max_limit = 255;
+int particles_interaction_d_min = 5;
+int particles_interaction_d_max = 30;
 float particles_speed = 8;
 float particles_lx, particles_ly;
 boolean particles_birth_square = false;
 boolean particles_pulse = false;
 boolean particles_noise = false;
 boolean particles_pull = false;
+boolean particles_collision = false;
 boolean particles_birth_circle = true;
 boolean particles_display = true;
 boolean particles_freeze = false;
@@ -84,7 +86,7 @@ int field_border_left, field_border_top, field_border_bot;
 PVector field_center = new PVector();
 
 void setup() {
-  size(1800, 1000, P2D);
+  size(1600, 1000, P2D);
   //fullScreen(P2D);
   blendMode(ADD);
 
@@ -227,17 +229,17 @@ void gui() {
     .setBarHeight(cp5_h); {
     cp5_vectorfield.getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("vectorfield_segment_nx", 5, vectorfield_segment_n_max, 0, cp5_y = 3, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
-    cp5.addSlider("vectorfield_segment_delay", 0, 0.1, 0, cp5_y += cp5_h + cp5_s, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
+    cp5.addSlider("vectorfield_segment_delay", 0.01, 0.2, 0, cp5_y += cp5_h + cp5_s, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
   }
 
   Group cp5_particles = cp5.addGroup("PARTICLES")
     .setBackgroundColor(50)
-    .setBackgroundHeight(8 * cp5_h + 9 * cp5_s)
+    .setBackgroundHeight(7 * cp5_h + 8 * cp5_s)
     .setBarHeight(cp5_h); {
     cp5_particles.getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("particles_streams", 1, 300, 0, cp5_y = 3, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
+    cp5.addSlider("particles_streams", 1, 200, 0, cp5_y = 3, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
     cp5.addSlider("particles_lifespan", 1, 200, 0, cp5_y += cp5_h + cp5_s, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
-    cp5.addSlider("particles_speed", -20, 40, 0, cp5_y += cp5_h + cp5_s, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
+    cp5.addSlider("particles_speed", -2, 40, 0, cp5_y += cp5_h + cp5_s, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
     cp5.addSlider("particles_size", 1, 20, 0, cp5_y += cp5_h + cp5_s, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
     cp5.addRange("PARTICLES_SATURATION_SCOPE").setGroup(cp5_particles)
       .setBroadcast(false)
@@ -255,11 +257,25 @@ void gui() {
       .setRange(0, 255)
       .setRangeValues(particles_saturation_min, particles_saturation_max)
       .setBroadcast(true);
-    cp5.addSlider("particles_birth_circle_r", 1, field_height / 2 - 20, 0, cp5_y += cp5_h + cp5_s, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles)
-      .setCaptionLabel("PARTICLES_BIRTH_RADIUS")
+    cp5.addToggle("particles_birth_circle", 0, cp5_y += cp5_h + cp5_s, 40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("particles_birth_circle_r", 1, field_height / 2 - 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles)
       .setValue(field_height / 2 - vectorfield_segment_d);
-    cp5.addSlider("background_color", 0, 255, 0, cp5_y += cp5_h + cp5_s, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles)
-      .setValue(100);
+  }
+
+  Group cp5_particles_interaction = cp5.addGroup("PARTICLES_INTERACTION")
+    .setBackgroundColor(50)
+    .setBackgroundHeight(1 * cp5_h + 2 * cp5_s)
+    .setBarHeight(cp5_h); {
+    cp5_particles_interaction.getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("particles_collision", 0, cp5_y = 3, 40, cp5_h).setCaptionLabel("ADD").setGroup(cp5_particles_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addRange("PARTICLES_INTERACTION_RANGE").setGroup(cp5_particles_interaction)
+      .setBroadcast(false)
+      .setPosition(43, cp5_y)
+      .setSize(cp5_w - 43, cp5_h)
+      .setHandleSize(5)
+      .setRange(0, 100)
+      .setRangeValues(particles_interaction_d_min, particles_interaction_d_max)
+      .setBroadcast(true);
   }
 
   Group cp5_divers = cp5.addGroup("DIVERS")
@@ -268,9 +284,8 @@ void gui() {
     .setBarHeight(cp5_h); {
     cp5_divers.getCaptionLabel().align(CENTER, CENTER);
     cp5_y = 3;
-    cp5.addToggle("targets_display", 0, cp5_y, 40, cp5_h).setCaptionLabel("TARGETS").setGroup(cp5_divers).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("targets_display", 0, cp5_y, 40, cp5_h).setValue(true).setCaptionLabel("TARGETS").setGroup(cp5_divers).getCaptionLabel().align(CENTER, CENTER);
     cp5.addToggle("particles_birth_square", cp5_w - 83, cp5_y, 40, cp5_h).setCaptionLabel("SQUARE").setGroup(cp5_divers).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("particles_birth_circle", cp5_w - 40, cp5_y, 40, cp5_h).setCaptionLabel("CIRCLE").setGroup(cp5_divers).getCaptionLabel().align(CENTER, CENTER);
     cp5.addToggle("background_display", 0, cp5_y += cp5_h + cp5_s, 40, cp5_h).setCaptionLabel("GROUND").setGroup(cp5_divers).getCaptionLabel().align(CENTER, CENTER);
     cp5.addBang("particles_pulse", cp5_w - 40, cp5_y, 40, cp5_h).setCaptionLabel("PULSE").setGroup(cp5_divers).getCaptionLabel().align(CENTER, CENTER);
     cp5.addToggle("particles_pull", cp5_w - 83, cp5_y, 40, cp5_h).setCaptionLabel("PULL").setGroup(cp5_divers).getCaptionLabel().align(CENTER, CENTER);
@@ -288,6 +303,7 @@ void gui() {
     cp5.addColorWheel("color_b", 120, 10, 100).setRGB(color(0, 255, 0)).setCaptionLabel("RIGHT").setGroup(cp5_color);
     cp5.addColorWheel("color_c", 0, 130, 100).setRGB(color(0, 0, 255)).setCaptionLabel("TOP").setGroup(cp5_color);
     cp5.addColorWheel("color_d", 120, 130, 100).setRGB(color(255, 0, 255)).setCaptionLabel("BOTTOM").setGroup(cp5_color);
+    cp5.addSlider("background_color", 0, 255, 0, 250, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_color).setValue(100);
   }
 
   cp5.addAccordion("acc").setPosition(20, 20).setWidth(cp5_w)
@@ -296,6 +312,7 @@ void gui() {
     .addItem(cp5_system)
     .addItem(cp5_vectorfield)
     .addItem(cp5_particles)
+    .addItem(cp5_particles_interaction)
     .addItem(cp5_divers)
     .addItem(cp5_color)
     .open();
@@ -309,6 +326,10 @@ void controlEvent(ControlEvent theControlEvent) {
   if (theControlEvent.isFrom("PARTICLES_SATURATION_LIMIT")) {
     particles_saturation_min_limit = int(theControlEvent.getController().getArrayValue(0));
     particles_saturation_max_limit = int(theControlEvent.getController().getArrayValue(1));
+  }
+  if (theControlEvent.isFrom("PARTICLES_INTERACTION_RANGE")) {
+    particles_interaction_d_min = int(theControlEvent.getController().getArrayValue(0));
+    particles_interaction_d_max = int(theControlEvent.getController().getArrayValue(1));
   }
 }
 
@@ -347,7 +368,6 @@ void targets() {
         targets.get(0).update(mouseX, mouseY);
         targets_removed = false;
       } else targets.get(0).update(mouseX, mouseY);
-
     }
 
     if (mouseX < field_border_left || mouseY < field_border_top || mouseY > height - field_border_bot) {
@@ -393,7 +413,7 @@ void particles() {
         for (int i = 0; i <= particles_streams_circle; i++) {
           paricles_birth_circle_pos.x = field_center.x + particles_birth_circle_r * cos((PI * i * 2) / (particles_streams_circle));
           paricles_birth_circle_pos.y = field_center.y - particles_birth_circle_r * sin((PI * i * 2) / (particles_streams_circle));
-          
+
           if (i >= 0 && i < particles_streams_circle / 3) {
             particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, particles_lifespan, color_a));
           }
@@ -419,6 +439,9 @@ void particles() {
         particles.lifespan();
         if (particles_pull) particles.addPull();
         if (particles_noise) particles.addNoise();
+        if (particles_collision && particles_streams <= 10) {
+          particles.addInteraction(particles_interaction_d_min, particles_interaction_d_max);
+        }
       }
       particles.display();
     }
@@ -491,11 +514,9 @@ class Pointer {
   PVector magnitude = new PVector();
   PVector[] path_store = new PVector[100];
   float a, d, r;
-  int graph_count = 0;
-  int path_count = 0;
   float[] graph_store;
-  color gray = color(50);
-  color brgt = color(255);
+  int graph_count = 0, path_count = 0;
+  color gray = color(50), brgt = color(255);
 
   Pointer(float x, float y, float diameter) {
     orgin.x = x;
@@ -515,7 +536,6 @@ class Pointer {
   }
 
   void needle(boolean b) {
-    float s;
     noFill();
     stroke(gray);
     if (b) ellipse(orgin.x, orgin.y, d, d);
@@ -525,7 +545,7 @@ class Pointer {
     line(orgin.x, orgin.y, needle.x, needle.y);
 
     for (int i = 0; i <= 360; i += 30) {
-      s = i * PI / 180;
+      float s = i * PI / 180;
       if (i % 90 > 0) {
         stroke(gray);
         line(orgin.x + r * cos(s), orgin.y + r * sin(s), orgin.x + (r - 10) * cos(s), orgin.y + (r - 10) * sin(s));
@@ -683,6 +703,7 @@ class Particle {
   PVector aclr = new PVector();
   PVector force = new PVector();
   PVector pull = new PVector(0, 0);
+  PVector repul = new PVector();
 
   float dist;
   int active, lifespan, lifespan_start, lifespan_range, saturation;
@@ -730,6 +751,18 @@ class Particle {
       pulse_time_cnt = 0;
       particles_pulse = false;
     }
+    pos.add(pull);
+  }
+
+  void addInteraction(int d_min, int d_max) {
+    for (int i = particles.size() - 1; i > 0; i--) {
+      Particle part = particles.get(i);
+      float d = pos.dist(part.pos);
+      if (d < d_max && d > d_min) {
+        stroke(r, g, b, a);
+        line(pos.x, pos.y, part.pos.x, part.pos.y);
+      }
+    }
   }
 
   void update() {
@@ -743,7 +776,6 @@ class Particle {
     force = PVector.sub(pos, aclr);
     aclr.setMag(particles_speed + pulse_speed);
     pos.add(aclr);
-    pos.add(pull);
   }
 
   void lifespan() {
