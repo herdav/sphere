@@ -24,8 +24,8 @@ int stream_data_fctr = 1000;
 Pointer pointer_yaw, pointer_x_axis, pointer_y_axis, pointer_stp;
 Pointer pointer_targets;
 PVector pointer_rstr = new PVector();
-
 boolean pointer_control = false;
+int pointer_margin_x = 300;
 
 // VECTORFIELD ----------------------------------------------------------
 Vectorfield vctr;
@@ -68,6 +68,7 @@ boolean particles_collision = false;
 boolean particles_birth_circle = true;
 boolean particles_display = true;
 boolean particles_freeze = false;
+float particles_birth_square_d;
 float particles_birth_circle_r;
 PVector paricles_birth_circle_pos = new PVector();
 
@@ -80,13 +81,13 @@ boolean background_display = false;
 int background_color = 0;
 boolean targets_display = false;
 int theme = 0;
-int field_height = 800;
+int field_height = 1000;
 int field_width = field_height;
 int field_border_left, field_border_top, field_border_bot;
 PVector field_center = new PVector();
 
 void setup() {
-  size(1600, 1000, P2D);
+  size(1800, 1000, P2D);
   //fullScreen(P2D);
   blendMode(ADD);
 
@@ -102,7 +103,7 @@ void setup() {
 
   fieldsize();
 
-  pointer_rstr.x = 500;
+  pointer_rstr.x = 600;
   pointer_rstr.y = 200;
   pointer_x_axis = new Pointer(pointer_rstr.x, pointer_rstr.y, 200);
   pointer_y_axis = new Pointer(pointer_rstr.x, height / 2, 200);
@@ -193,24 +194,38 @@ void fieldsize() {
 }
 
 void gui() {
-  int cp5_w = 220;
+  int cp5_w = 320;
   int cp5_h = 14;
   int cp5_x = 20;
   int cp5_y = 0;
   int cp5_s = 4;
+  int cp5_hs = cp5_h + cp5_s;
+  int cp5_n, cp5_hn;
 
   cp5 = new ControlP5(this);
   cp5.setColorBackground(color(50))
     .setColorForeground(color(100))
     .setColorActive(color(150));
 
+  cp5_n = 2;
   Group cp5_system = cp5.addGroup("SYSTEM")
     .setBackgroundColor(50)
-    .setBackgroundHeight(2 * cp5_h + 3 * cp5_s)
+    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
     .setBarHeight(cp5_h); {
     cp5_system.getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("pointer_control", 0, cp5_y = 3, 110, cp5_h).setCaptionLabel("POINTER CONTROL DISPLAY").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("targets_pointer", 0, cp5_y += cp5_hs, 110, cp5_h).setCaptionLabel("SET POINTER AS TARGET").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("targets_display", cp5_w - 83, cp5_y = 3, 80, cp5_h).setValue(true).setCaptionLabel("TARGETS DISPLAY").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("particles_display", cp5_w - 83, cp5_y += cp5_hs, 80, cp5_h).setCaptionLabel("PARTICLES DISPLAY").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
+  }
+
+  cp5_n = 3;
+  Group cp5_vectorfield = cp5.addGroup("VECTORFIELD")
+    .setBackgroundColor(50)
+    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
+    .setBarHeight(cp5_h); {
     cp5.addButtonBar("theme")
-      .setGroup(cp5_system)
+      .setGroup(cp5_vectorfield)
       .setPosition(0, cp5_y = 3)
       .setSize(cp5_w, cp5_h)
       .addItems(split("PS VS LD HM FL", " "))
@@ -219,31 +234,24 @@ void gui() {
           ButtonBar theme = (ButtonBar) ev.getController();
         }
       });
-    cp5.addToggle("pointer_control", 0, cp5_y += 3 + cp5_h, 80, cp5_h).setCaptionLabel("POINTER CONTROL").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("targets_pointer", 140, cp5_y, 80, cp5_h).setCaptionLabel("POINTER TARGETS").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
-  }
-
-  Group cp5_vectorfield = cp5.addGroup("VECTORFIELD")
-    .setBackgroundColor(50)
-    .setBackgroundHeight(2 * cp5_h + 3 * cp5_s)
-    .setBarHeight(cp5_h); {
     cp5_vectorfield.getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("vectorfield_segment_nx", 5, vectorfield_segment_n_max, 0, cp5_y = 3, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
-    cp5.addSlider("vectorfield_segment_delay", 0.01, 0.2, 0, cp5_y += cp5_h + cp5_s, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
+    cp5.addSlider("vectorfield_segment_nx", 5, vectorfield_segment_n_max, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
+    cp5.addSlider("vectorfield_segment_delay", 0.01, 0.2, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
   }
 
+  cp5_n = 8;
   Group cp5_particles = cp5.addGroup("PARTICLES")
     .setBackgroundColor(50)
-    .setBackgroundHeight(7 * cp5_h + 8 * cp5_s)
+    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
     .setBarHeight(cp5_h); {
     cp5_particles.getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("particles_streams", 1, 200, 0, cp5_y = 3, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
-    cp5.addSlider("particles_lifespan", 1, 200, 0, cp5_y += cp5_h + cp5_s, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
-    cp5.addSlider("particles_speed", -2, 40, 0, cp5_y += cp5_h + cp5_s, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
-    cp5.addSlider("particles_size", 1, 20, 0, cp5_y += cp5_h + cp5_s, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
+    cp5.addSlider("particles_lifespan", 1, 200, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
+    cp5.addSlider("particles_speed", -2, 40, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
+    cp5.addSlider("particles_size", 1, 20, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
     cp5.addRange("PARTICLES_SATURATION_SCOPE").setGroup(cp5_particles)
       .setBroadcast(false)
-      .setPosition(0, cp5_y += cp5_h + cp5_s)
+      .setPosition(0, cp5_y += cp5_hs)
       .setSize(cp5_w, cp5_h)
       .setHandleSize(5)
       .setRange(0, 255)
@@ -251,20 +259,24 @@ void gui() {
       .setBroadcast(true);
     cp5.addRange("PARTICLES_SATURATION_LIMIT").setGroup(cp5_particles)
       .setBroadcast(false)
-      .setPosition(0, cp5_y += cp5_h + cp5_s)
+      .setPosition(0, cp5_y += cp5_hs)
       .setSize(cp5_w, cp5_h)
       .setHandleSize(5)
       .setRange(0, 255)
       .setRangeValues(particles_saturation_min, particles_saturation_max)
       .setBroadcast(true);
-    cp5.addToggle("particles_birth_circle", 0, cp5_y += cp5_h + cp5_s, 40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("particles_birth_circle", 0, cp5_y += cp5_hs, 40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("particles_birth_circle_r", 1, field_height / 2 - 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles)
+      .setValue(field_height / 2 - vectorfield_segment_d);
+    cp5.addToggle("particles_birth_square", 0, cp5_y += cp5_hs, 40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("particles_birth_square_d", 1, field_height / 2 - 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles)
       .setValue(field_height / 2 - vectorfield_segment_d);
   }
 
-  Group cp5_particles_interaction = cp5.addGroup("PARTICLES_INTERACTION")
+  cp5_n = 1;
+  Group cp5_particles_interaction = cp5.addGroup("PARTICLES INTERACTION")
     .setBackgroundColor(50)
-    .setBackgroundHeight(1 * cp5_h + 2 * cp5_s)
+    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
     .setBarHeight(cp5_h); {
     cp5_particles_interaction.getCaptionLabel().align(CENTER, CENTER);
     cp5.addToggle("particles_collision", 0, cp5_y = 3, 40, cp5_h).setCaptionLabel("ADD").setGroup(cp5_particles_interaction).getCaptionLabel().align(CENTER, CENTER);
@@ -278,32 +290,28 @@ void gui() {
       .setBroadcast(true);
   }
 
-  Group cp5_divers = cp5.addGroup("DIVERS")
+  cp5_n = 1;
+  Group cp5_effects = cp5.addGroup("PARTICLES EFFECTS")
     .setBackgroundColor(50)
-    .setBackgroundHeight(3 * cp5_h + 4 * cp5_s)
+    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
     .setBarHeight(cp5_h); {
-    cp5_divers.getCaptionLabel().align(CENTER, CENTER);
-    cp5_y = 3;
-    cp5.addToggle("targets_display", 0, cp5_y, 40, cp5_h).setValue(true).setCaptionLabel("TARGETS").setGroup(cp5_divers).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("particles_birth_square", cp5_w - 83, cp5_y, 40, cp5_h).setCaptionLabel("SQUARE").setGroup(cp5_divers).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("background_display", 0, cp5_y += cp5_h + cp5_s, 40, cp5_h).setCaptionLabel("GROUND").setGroup(cp5_divers).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addBang("particles_pulse", cp5_w - 40, cp5_y, 40, cp5_h).setCaptionLabel("PULSE").setGroup(cp5_divers).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("particles_pull", cp5_w - 83, cp5_y, 40, cp5_h).setCaptionLabel("PULL").setGroup(cp5_divers).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("particles_noise", cp5_w - 126, cp5_y, 40, cp5_h).setCaptionLabel("NOISE").setGroup(cp5_divers).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("particles_display", cp5_w - 83, cp5_y += cp5_h + cp5_s, 40, cp5_h).setCaptionLabel("DISPLAY").setGroup(cp5_divers).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("particles_freeze", cp5_w - 126, cp5_y, 40, cp5_h).setCaptionLabel("FREEZE").setGroup(cp5_divers).getCaptionLabel().align(CENTER, CENTER);
+    cp5_effects.getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("particles_pulse", 0, cp5_y, 40, cp5_h).setCaptionLabel("PULSE").setGroup(cp5_effects).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("particles_pull", 43, cp5_y, 40, cp5_h).setCaptionLabel("PULL").setGroup(cp5_effects).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("particles_noise", 86, cp5_y, 40, cp5_h).setCaptionLabel("NOISE").setGroup(cp5_effects).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("particles_freeze", 129, cp5_y, 40, cp5_h).setCaptionLabel("FREEZE").setGroup(cp5_effects).getCaptionLabel().align(CENTER, CENTER);
   }
 
-  Group cp5_color = cp5.addGroup("COLOR")
+  Group cp5_color = cp5.addGroup("PARTICLES COLOR")
     .setBackgroundColor(50)
     .setBarHeight(cp5_h)
-    .setBackgroundHeight(250); {
+    .setBackgroundHeight(130); {
     cp5_color.getCaptionLabel().align(CENTER, CENTER);
     cp5.addColorWheel("color_a", 0, 10, 100).setRGB(color(255, 0, 0)).setCaptionLabel("LEFT").setGroup(cp5_color);
-    cp5.addColorWheel("color_b", 120, 10, 100).setRGB(color(0, 255, 0)).setCaptionLabel("RIGHT").setGroup(cp5_color);
-    cp5.addColorWheel("color_c", 0, 130, 100).setRGB(color(0, 0, 255)).setCaptionLabel("TOP").setGroup(cp5_color);
-    cp5.addColorWheel("color_d", 120, 130, 100).setRGB(color(255, 0, 255)).setCaptionLabel("BOTTOM").setGroup(cp5_color);
-    cp5.addSlider("background_color", 0, 255, 0, 250, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_color).setValue(100);
+    cp5.addColorWheel("color_b", 110, 10, 100).setRGB(color(0, 255, 0)).setCaptionLabel("RIGHT").setGroup(cp5_color);
+    cp5.addColorWheel("color_c", 220, 10, 100).setRGB(color(0, 0, 255)).setCaptionLabel("TOP").setGroup(cp5_color);
+    cp5.addToggle("background_display", 0, 130, 40, cp5_h).setCaptionLabel("set").setGroup(cp5_color).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("background_color", 0, 255, 43, 130, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_color);
   }
 
   cp5.addAccordion("acc").setPosition(20, 20).setWidth(cp5_w)
@@ -313,7 +321,7 @@ void gui() {
     .addItem(cp5_vectorfield)
     .addItem(cp5_particles)
     .addItem(cp5_particles_interaction)
-    .addItem(cp5_divers)
+    .addItem(cp5_effects)
     .addItem(cp5_color)
     .open();
 }
@@ -405,7 +413,7 @@ void particles() {
           particles.add(new Particle(field_border_left + vectorfield_segment_d, field_border_top + vectorfield_segment_d + particles_ly * i, particles_lifespan, color_a)); // left
           particles.add(new Particle(width - vectorfield_segment_d, field_border_top + vectorfield_segment_d + particles_ly * i, particles_lifespan, color_b)); // right
           particles.add(new Particle(field_border_left + vectorfield_segment_d + particles_lx * i, field_border_top + vectorfield_segment_d, particles_lifespan, color_c)); // top
-          particles.add(new Particle(field_border_left + vectorfield_segment_d + particles_lx * i, height - field_border_bot - vectorfield_segment_d, particles_lifespan, color_d)); // bottom
+          particles.add(new Particle(field_border_left + vectorfield_segment_d + particles_lx * i, height - field_border_bot - vectorfield_segment_d, particles_lifespan, color_c)); // bottom
         }
       }
       if (particles_birth_circle) {
