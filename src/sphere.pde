@@ -14,7 +14,7 @@ boolean stream_port_on = false;
 boolean stream_data_serial_print = false;
 Serial stream_port;
 String stream_data, stream_data_eff;
-String port_name = "N/A";
+String stream_port_name = "N/A";
 float[] stream_data_val;
 float stream_data_angle_x, stream_data_angle_y, stream_data_angle_u,
 stream_data_magni_u, stream_data_stp_yaw, stream_data_stp_cnt,
@@ -83,7 +83,7 @@ ControlP5 cp5;
 color color_a, color_b, color_c, color_d;
 boolean controls_show = true;
 boolean record_pdf = false;
-boolean background_display = false;
+boolean background_display = true;
 int background_color = 0;
 boolean targets_display = false;
 int theme = 0;
@@ -100,11 +100,11 @@ void setup() {
   String[] ports = Serial.list();
   if (ports.length == 0) println("No ports found!");
   if (ports.length != 0) {
-    port_name = Serial.list()[0];
-    stream_port = new Serial(this, port_name, 9600);
+    stream_port_name = Serial.list()[0];
+    stream_port = new Serial(this, stream_port_name, 9600);
     stream_port.bufferUntil('\n');
     stream_port_on = true;
-    println("Device is connected to " + port_name + '.');
+    println("Device is connected to " + stream_port_name + '.');
   }
 
   fieldsize();
@@ -302,7 +302,7 @@ void gui() {
       .setRangeValues(particles_interaction_d_min, particles_interaction_d_max)
       .setBroadcast(true);
     cp5.addToggle("addInteraction_force", 0, cp5_y += cp5_hs, 40, cp5_h).setCaptionLabel("ADD").setGroup(cp5_particles_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("particles_interaction_force", -2, 2, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
+    cp5.addSlider("particles_interaction_force", -0.5, 0.5, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
   }
 
   cp5_n = 1;
@@ -515,7 +515,7 @@ void data() {
       vectors.size() + "\n" +
       particles.size() + "\n" +
       targets.size() + "\n\n" +
-      port_name + "\n\n" +
+      stream_port_name + "\n\n" +
       hour() + ':' + minute() + ':' + second() + "\n\nsphere.pde", 100, height - 20);
   }
 }
@@ -734,11 +734,13 @@ class Particle {
   PVector pos = new PVector();
   PVector aclr = new PVector();
   PVector force = new PVector();
-  PVector pull = new PVector(0, 0);
+  PVector pull = new PVector();
   PVector repul = new PVector();
 
   float dist;
   int active, lifespan, lifespan_start, lifespan_range, saturation;
+
+  boolean connected = false;
 
   color argb;
   int a, r, g, b;
@@ -796,13 +798,17 @@ class Particle {
         float d = force.mag();
 
         if (d < d_max && d > d_min) {
-          strokeWeight(1);
-          stroke(r, g, b, a);
-          line(pos.x, pos.y, part.pos.x, part.pos.y);
-
           if (addInteraction_force) {
             force.setMag(f);
             aclr.add(force);
+            part.connected = true;
+            connected = false;
+          }
+
+          if (connected == false) {
+            strokeWeight(1);
+            stroke(r, g, b, a);
+            line(pos.x, pos.y, part.pos.x, part.pos.y);
           }
         }
       }
