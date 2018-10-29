@@ -11,14 +11,17 @@ import processing.serial.*;
 
 // SERIAL COMMUNICATION -------------------------------------------------
 boolean stream_port_on = false;
+boolean stream_data_serial_print = false;
 Serial stream_port;
 String stream_data, stream_data_eff;
+String port_name = "N/A";
 float[] stream_data_val;
 float stream_data_angle_x, stream_data_angle_y, stream_data_angle_u,
 stream_data_magni_u, stream_data_stp_yaw, stream_data_stp_cnt,
 stream_data_poti, stream_data_rpm, stream_data_angle_stp,
 stream_data_angle_rot;
 int stream_data_fctr = 1000;
+
 
 // POINTER --------------------------------------------------------------
 Pointer pointer_yaw, pointer_x_axis, pointer_y_axis, pointer_stp;
@@ -68,7 +71,8 @@ boolean particles_pull = false;
 boolean particles_interaction = false;
 boolean addInteraction_force = false;
 boolean particles_birth_circle = true;
-boolean particles_display = true;
+boolean particles_calculate = true;
+boolean particles_set = true;
 boolean particles_freeze = false;
 float particles_birth_square_d;
 float particles_birth_circle_r;
@@ -78,7 +82,7 @@ PVector paricles_birth_circle_pos = new PVector();
 ControlP5 cp5;
 color color_a, color_b, color_c, color_d;
 boolean controls_show = true;
-boolean record_pdf = true;
+boolean record_pdf = false;
 boolean background_display = false;
 int background_color = 0;
 boolean targets_display = false;
@@ -96,11 +100,11 @@ void setup() {
   String[] ports = Serial.list();
   if (ports.length == 0) println("No ports found!");
   if (ports.length != 0) {
-    String portName = Serial.list()[0];
-    stream_port = new Serial(this, portName, 9600);
+    port_name = Serial.list()[0];
+    stream_port = new Serial(this, port_name, 9600);
     stream_port.bufferUntil('\n');
     stream_port_on = true;
-    println("Device is connected to " + portName + '.');
+    println("Device is connected to " + port_name + '.');
   }
 
   fieldsize();
@@ -123,14 +127,15 @@ void setup() {
 }
 
 void draw() {
+  background(0);
   control();
   record();
   targets();
   field();
   particles();
   data();
-  if (record_pdf) endRecord();
-  if (pointer_control) pointer();
+  endRecord();
+  pointer(pointer_control);
 }
 
 void serialEvent(Serial stream_port) {
@@ -154,37 +159,41 @@ void serialEvent(Serial stream_port) {
 
     stream_data_angle_stp = 2 * PI / 600 * stream_data_stp_cnt;
 
-    /*println("x:" + int(stream_data_angle_x * 180 / PI), "y:" + int(stream_data_angle_y * 180 / PI), "u:" + int(stream_data_angle_u * 180 / PI),
-      "m:" + int(100 * stream_data_magni_u), "stp:" + int(stream_data_stp_yaw), "cnt:" + int(stream_data_stp_cnt), "speed:" + int(stream_data_rpm), "poti:" + int(stream_data_poti));*/
+    if (stream_data_serial_print) {
+      println("x:" + int(stream_data_angle_x * 180 / PI), "y:" + int(stream_data_angle_y * 180 / PI), "u:" + int(stream_data_angle_u * 180 / PI),
+        "m:" + int(100 * stream_data_magni_u), "stp:" + int(stream_data_stp_yaw), "cnt:" + int(stream_data_stp_cnt), "speed:" + int(stream_data_rpm), "poti:" + int(stream_data_poti));
+    }
   }
 }
 
-void pointer() {
-  pointer_x_axis.calculation(stream_data_angle_x, 1);
-  pointer_x_axis.needle(true);
-  //pointer_x_axis.graph(30);
-  pointer_x_axis.magnitude();
-  pointer_x_axis.path(color(0, 255, 0, 200));
-  pointer_x_axis.title("x-axis");
+void pointer(boolean set) {
+  if (set) {
+    pointer_x_axis.calculation(stream_data_angle_x, 1);
+    pointer_x_axis.needle(true);
+    pointer_x_axis.graph(false, 30);
+    pointer_x_axis.magnitude();
+    pointer_x_axis.path(true, color(0, 255, 0, 200));
+    pointer_x_axis.title("x-axis");
 
-  pointer_y_axis.calculation(stream_data_angle_y, 1);
-  pointer_y_axis.needle(true);
-  //pointer_y_axis.graph(30);
-  pointer_y_axis.magnitude();
-  pointer_y_axis.path(color(0, 255, 0, 200));
-  pointer_y_axis.title("y-axis");
+    pointer_y_axis.calculation(stream_data_angle_y, 1);
+    pointer_y_axis.needle(true);
+    pointer_y_axis.graph(false, 30);
+    pointer_y_axis.magnitude();
+    pointer_y_axis.path(true, color(0, 255, 0, 200));
+    pointer_y_axis.title("y-axis");
 
-  pointer_stp.calculation(stream_data_angle_stp, sqrt(sq(stream_data_rpm)) / 35);
-  pointer_stp.needle(false);
-  pointer_stp.magnitude();
-  pointer_stp.path(color(255, 0, 255, 200));
+    pointer_stp.calculation(stream_data_angle_stp, sqrt(sq(stream_data_rpm)) / 35);
+    pointer_stp.needle(false);
+    pointer_stp.magnitude();
+    pointer_stp.path(true, color(255, 0, 255, 200));
 
-  pointer_yaw.calculation(stream_data_angle_rot, stream_data_magni_u);
-  pointer_yaw.needle(true);
-  //pointer_yaw.graph(5);
-  pointer_yaw.magnitude();
-  pointer_yaw.path(color(0, 255, 0, 200));
-  pointer_yaw.title("yaw-angle");
+    pointer_yaw.calculation(stream_data_angle_rot, stream_data_magni_u);
+    pointer_yaw.needle(true);
+    pointer_yaw.graph(false, 5);
+    pointer_yaw.magnitude();
+    pointer_yaw.path(true, color(0, 255, 0, 200));
+    pointer_yaw.title("yaw-angle");
+  }
 }
 
 void fieldsize() {
@@ -209,16 +218,17 @@ void gui() {
     .setColorForeground(color(100))
     .setColorActive(color(150));
 
-  cp5_n = 2;
+  cp5_n = 3;
   Group cp5_system = cp5.addGroup("SYSTEM")
     .setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
     .setBarHeight(cp5_h); {
     cp5_system.getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("pointer_control", 0, cp5_y = 3, 110, cp5_h).setCaptionLabel("POINTER CONTROL DISPLAY").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("targets_pointer", 0, cp5_y += cp5_hs, 110, cp5_h).setCaptionLabel("SET POINTER AS TARGET").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("targets_display", cp5_w - 83, cp5_y = 3, 80, cp5_h).setValue(true).setCaptionLabel("TARGETS DISPLAY").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("particles_display", cp5_w - 83, cp5_y += cp5_hs, 80, cp5_h).setCaptionLabel("PARTICLES DISPLAY").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("pointer_control", 0, cp5_y = 3, 110, cp5_h).setCaptionLabel("DEVICE CONTROL DISPLAY").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("targets_pointer", 0, cp5_y += cp5_hs, 110, cp5_h).setCaptionLabel("SET DEVICE AS TARGET").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("stream_data_serial_print", 0, cp5_y += cp5_hs, 110, cp5_h).setCaptionLabel("SERIAL PRINT DEVICE DATA").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("targets_display", cp5_w - 113, cp5_y = 3, 110, cp5_h).setValue(true).setCaptionLabel("TARGETS DISPLAY").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("particles_calculate", cp5_w - 113, cp5_y += cp5_hs, 110, cp5_h).setCaptionLabel("PARTICLES CALCULATE").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
   }
 
   cp5_n = 3;
@@ -250,7 +260,8 @@ void gui() {
     cp5.addSlider("particles_streams", 1, 200, 0, cp5_y = 3, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
     cp5.addSlider("particles_lifespan", 1, 200, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
     cp5.addSlider("particles_speed", -2, 40, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
-    cp5.addSlider("particles_size", 1, 20, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
+    cp5.addToggle("particles_set", 0, cp5_y += cp5_hs, 40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("particles_size", 1, 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
     cp5.addRange("PARTICLES_SATURATION_SCOPE").setGroup(cp5_particles)
       .setBroadcast(false)
       .setPosition(0, cp5_y += cp5_hs)
@@ -291,7 +302,7 @@ void gui() {
       .setRangeValues(particles_interaction_d_min, particles_interaction_d_max)
       .setBroadcast(true);
     cp5.addToggle("addInteraction_force", 0, cp5_y += cp5_hs, 40, cp5_h).setCaptionLabel("ADD").setGroup(cp5_particles_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("particles_interaction_force", -3, 3, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
+    cp5.addSlider("particles_interaction_force", -2, 2, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
   }
 
   cp5_n = 1;
@@ -400,16 +411,16 @@ void targets() {
 
   for (Target targets: targets) {
     targets.update();
-    if (targets_display) targets.display();
+    targets.display(targets_display);
   }
 }
 
 void particles() {
-  if (particles_display) {
+  if (particles_calculate) {
     particles_count++;
-
     if (particles_count == particles_birthrate) {
       particles_count = 0;
+
       if (particles_birth_square) {
         particles_ly = ((field_height - 2 * vectorfield_segment_d) / particles_streams);
         particles_lx = particles_ly;
@@ -444,18 +455,19 @@ void particles() {
       if (part.lifespan <= 0) particles.remove(i);
     }
 
+    int n = particles.size();
     for (Particle particles: particles) {
       if (particles_freeze != true) {
-        if (particles_pulse) particles.addPulse();
         particles.update();
         particles.lifespan();
-        if (particles_pull) particles.addPull();
-        if (particles_noise) particles.addNoise();
-        if (particles_interaction && particles_streams <= 10) {
-          particles.addInteraction(particles_interaction_d_min, particles_interaction_d_max, particles_interaction_force);
+        particles.addPulse(particles_pulse);
+        particles.addPull(particles_pull);
+        particles.addNoise(particles_noise);
+        if (particles_streams <= 10 && n < 3000) {
+          particles.addInteraction(particles_interaction, particles_interaction_d_min, particles_interaction_d_max, particles_interaction_force);
         }
       }
-      particles.display();
+      particles.display(particles_set);
     }
   }
 }
@@ -486,7 +498,7 @@ void field() {
       vctr.magnitude(vectorfield_segment_delay);
     }
     vctr.colorize(theme);
-    //vctr.grid();
+    vctr.grid(false, false);
   }
 }
 
@@ -495,7 +507,7 @@ void data() {
     textSize(9);
     fill(255);
     textAlign(LEFT, BOTTOM);
-    text("FPS\n" + "VECTORS\n" + "PARTICLES\n" + "TARGETS\n\n" +
+    text("FPS\n" + "VECTORS\n" + "PARTICLES\n" + "TARGETS\n\n" + "DEVICE\n\n" +
       year() + '/' + month() + '/' + day() + "\n\n" +
       "David Herren", 20, height - 20);
 
@@ -503,14 +515,13 @@ void data() {
       vectors.size() + "\n" +
       particles.size() + "\n" +
       targets.size() + "\n\n" +
+      port_name + "\n\n" +
       hour() + ':' + minute() + ':' + second() + "\n\nsphere.pde", 100, height - 20);
   }
 }
 
 void record() {
-  background(0);
   record_pdf = false;
-
   if (keyPressed && key == 's') record_pdf = true;
   if (record_pdf) beginRecord(PDF, "\\export\\pdf\\frame-######.pdf");
   if (background_display) {
@@ -571,22 +582,26 @@ class Pointer {
     ellipse(magnitude.x, magnitude.y, 8, 8);
   }
 
-  void path(color c) {
-    path_count++;
-    if (path_count == path_store.length - 1) path_count = 0;
-    path_store[path_count].x = magnitude.x;
-    path_store[path_count].y = magnitude.y;
-    noStroke();
-    fill(c);
-    for (int i = 0; i < path_store.length; i++) ellipse(path_store[i].x, path_store[i].y, 2, 2);
+  void path(boolean set, color c) {
+    if (set) {
+      path_count++;
+      if (path_count == path_store.length - 1) path_count = 0;
+      path_store[path_count].x = magnitude.x;
+      path_store[path_count].y = magnitude.y;
+      noStroke();
+      fill(c);
+      for (int i = 0; i < path_store.length; i++) ellipse(path_store[i].x, path_store[i].y, 2, 2);
+    }
   }
 
-  void graph(int f) {
-    graph_count++;
-    if (graph_count == d - 1) graph_count = 0;
-    graph_store[graph_count] = f * a;
-    stroke(gray);
-    for (int i = 0; i < graph_store.length; i++) line(orgin.x - r + i, orgin.y + r + r / 1.5, orgin.x - r + i, orgin.y + r + r / 1.5 - graph_store[i]);
+  void graph(boolean set, int f) {
+    if (set) {
+      graph_count++;
+      if (graph_count == d - 1) graph_count = 0;
+      graph_store[graph_count] = f * a;
+      stroke(gray);
+      for (int i = 0; i < graph_store.length; i++) line(orgin.x - r + i, orgin.y + r + r / 1.5, orgin.x - r + i, orgin.y + r + r / 1.5 - graph_store[i]);
+    }
   }
 
   void title(String t) {
@@ -612,10 +627,13 @@ class Target {
 
   void update() {}
 
-  void display() {
-    noStroke();
-    fill(255);
-    ellipse(pos.x, pos.y, 10, 10);
+  void display(boolean set) {
+    if (set) {
+      noFill();
+      stroke(255, 200);
+      strokeWeight(2);
+      ellipse(pos.x, pos.y, 15, 15);
+    }
   }
 }
 
@@ -652,17 +670,19 @@ class Vectorfield {
     force = PVector.sub(result, orgin);
   }
 
-  void grid() {
+  void grid(boolean ellipse, boolean rect) {
     noFill();
     stroke(darkgray);
-    ellipse(orgin.x, orgin.y, vectorfield_segment_d, vectorfield_segment_d);
+    strokeWeight(1);
+    if (ellipse) ellipse(orgin.x, orgin.y, vectorfield_segment_d, vectorfield_segment_d);
     rectMode(CENTER);
-    //rect(orgin.x, orgin.y, vectorfield_segment_d, vectorfield_segment_d);
+    if (rect) rect(orgin.x, orgin.y, vectorfield_segment_d, vectorfield_segment_d);
   }
 
   void colorize(int input) {
     float scope;
     int n, r;
+    strokeWeight(1);
 
     switch (input) {
       case 1: // vector field
@@ -742,42 +762,48 @@ class Particle {
     pulse_time_tot = pulse_time_a + pulse_time_b;
   }
 
-  void addPull() {
-    pull = aclr.mult(-1);
+  void addPull(boolean set) {
+    if (set) pull = aclr.mult(-1);
   }
 
-  void addNoise() {
-    aclr.mult(random(0.95, 1.05));
+  void addNoise(boolean set) {
+    if (set) aclr.mult(random(0.95, 1.05));
   }
 
-  void addPulse() {
-    pulse_time_cnt++;
-    if (pulse_time_cnt <= pulse_time_a) {
-      pulse_speed = pulse_speed_min - particles_speed;
+  void addPulse(boolean set) {
+    if (set) {
+      pulse_time_cnt++;
+      if (pulse_time_cnt <= pulse_time_a) {
+        pulse_speed = pulse_speed_min - particles_speed;
+      }
+      if (pulse_time_cnt > pulse_time_a && pulse_time_cnt <= pulse_time_tot) {
+        pulse_speed = particles_speed - (pulse_speed_max - particles_speed) / (pulse_time_b * (pulse_time_cnt - pulse_time_a));
+      }
+      if (pulse_time_cnt == pulse_time_tot) {
+        pulse_speed = 0;
+        pulse_time_cnt = 0;
+        particles_pulse = false;
+      }
+      pos.add(pull);
     }
-    if (pulse_time_cnt > pulse_time_a && pulse_time_cnt <= pulse_time_tot) {
-      pulse_speed = particles_speed - (pulse_speed_max - particles_speed) / (pulse_time_b * (pulse_time_cnt - pulse_time_a));
-    }
-    if (pulse_time_cnt == pulse_time_tot) {
-      pulse_speed = 0;
-      pulse_time_cnt = 0;
-      particles_pulse = false;
-    }
-    pos.add(pull);
   }
 
-  void addInteraction(int d_min, int d_max, float f) {
-    for (int i = particles.size() - 1; i > 0; i--) {
-      Particle part = particles.get(i);
-      force = PVector.sub(part.pos, pos);
-      float d = force.mag();
-      if (d < d_max && d > d_min) {
-        stroke(r, g, b, a);
-        line(pos.x, pos.y, part.pos.x, part.pos.y);
+  void addInteraction(boolean set, int d_min, int d_max, float f) {
+    if (set) {
+      for (int i = particles.size() - 1; i > 0; i--) {
+        Particle part = particles.get(i);
+        force = PVector.sub(part.pos, pos);
+        float d = force.mag();
 
-        if (addInteraction_force) {
-          force.setMag(f);
-          aclr.add(force);
+        if (d < d_max && d > d_min) {
+          strokeWeight(1);
+          stroke(r, g, b, a);
+          line(pos.x, pos.y, part.pos.x, part.pos.y);
+
+          if (addInteraction_force) {
+            force.setMag(f);
+            aclr.add(force);
+          }
         }
       }
     }
@@ -797,14 +823,13 @@ class Particle {
 
   void lifespan() {
     lifespan--;
-
     if (pos.x <= vectorfield_segment_d + field_border_left || pos.x >= width - vectorfield_segment_d ||
       pos.y <= field_border_top + vectorfield_segment_d || pos.y >= height - field_border_bot - vectorfield_segment_d) {
       lifespan = 0;
     }
   }
 
-  void display() {
+  void display(boolean set) {
     lifespan_range = int(map(lifespan, 0, lifespan_start, 255, 0));
 
     if (lifespan_range < particles_saturation_min || lifespan_range > particles_saturation_max) saturation = particles_saturation_min_limit;
@@ -815,9 +840,11 @@ class Particle {
     g = (argb >> 8) & 0xFF;
     b = argb & 0xFF;
 
-    noStroke();
-    fill(r, g, b, a);
-    rectMode(CENTER);
-    rect(pos.x, pos.y, particles_size, particles_size);
+    if (set) {
+      noStroke();
+      fill(r, g, b, a);
+      rectMode(CENTER);
+      rect(pos.x, pos.y, particles_size, particles_size);
+    }
   }
 }
