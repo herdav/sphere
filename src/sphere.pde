@@ -62,6 +62,8 @@ int particles_saturation_max_limit = 255;
 int particles_interaction_d_min = 5;
 int particles_interaction_d_max = 30;
 float particles_interaction_force = 0;
+float particles_extinction_d = 1;
+float particles_extinction_l = 1;
 float particles_speed = 8;
 float particles_lx, particles_ly;
 boolean particles_birth_square = false;
@@ -69,6 +71,7 @@ boolean particles_pulse = false;
 boolean particles_noise = false;
 boolean particles_pull = false;
 boolean particles_interaction = false;
+boolean particles_extinction = false;
 boolean addInteraction_force = false;
 boolean particles_birth_circle = true;
 boolean particles_calculate = true;
@@ -80,12 +83,15 @@ PVector paricles_birth_circle_pos = new PVector();
 
 // GUI & CONTROLS -------------------------------------------------------
 ControlP5 cp5;
+int cp5_w = 320;
 color color_a, color_b, color_c, color_d;
 boolean controls_show = true;
 boolean record_pdf = false;
 boolean background_display = true;
-int background_color = 0;
 boolean targets_display = false;
+boolean load_default, load_preset_1, load_preset_2, load_preset_3, load_preset_4,
+load_preset_5;
+int background_color = 0;
 int theme = 0;
 int field_height = 1000;
 int field_width = field_height;
@@ -205,7 +211,6 @@ void fieldsize() {
 }
 
 void gui() {
-  int cp5_w = 320;
   int cp5_h = 14;
   int cp5_x = 20;
   int cp5_y = 0;
@@ -229,6 +234,20 @@ void gui() {
     cp5.addToggle("stream_data_serial_print", 0, cp5_y += cp5_hs, 110, cp5_h).setCaptionLabel("SERIAL PRINT DEVICE DATA").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
     cp5.addToggle("targets_display", cp5_w - 113, cp5_y = 3, 110, cp5_h).setValue(true).setCaptionLabel("TARGETS DISPLAY").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
     cp5.addToggle("particles_calculate", cp5_w - 113, cp5_y += cp5_hs, 110, cp5_h).setCaptionLabel("PARTICLES CALCULATE").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
+  }
+
+  cp5_n = 2;
+  Group cp5_presets = cp5.addGroup("PRESETS")
+    .setBackgroundColor(50)
+    .setBarHeight(cp5_h)
+    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s); {
+    cp5_presets.getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_default", 0, cp5_y = 3, 40, cp5_h).setCaptionLabel("DEFAULT").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_1", 43, cp5_y, 40, cp5_h).setCaptionLabel("PRESET 1").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_2", 86, cp5_y, 40, cp5_h).setCaptionLabel("PRESET 2").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_3", 129, cp5_y, 40, cp5_h).setCaptionLabel("PRESET 3").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_4", 0, cp5_y += cp5_hs, 40, cp5_h).setCaptionLabel("PRESET 4").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_5", 43, cp5_y, 40, cp5_h).setCaptionLabel("PRESET 5").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
   }
 
   cp5_n = 3;
@@ -286,7 +305,7 @@ void gui() {
       .setValue(field_height / 2 - vectorfield_segment_d);
   }
 
-  cp5_n = 2;
+  cp5_n = 4;
   Group cp5_particles_interaction = cp5.addGroup("PARTICLES INTERACTION")
     .setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
@@ -303,6 +322,9 @@ void gui() {
       .setBroadcast(true);
     cp5.addToggle("addInteraction_force", 0, cp5_y += cp5_hs, 40, cp5_h).setCaptionLabel("ADD").setGroup(cp5_particles_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("particles_interaction_force", -0.5, 0.5, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
+    cp5.addToggle("particles_extinction", 0, cp5_y += cp5_hs, 40, cp5_h * 2 + 4).setCaptionLabel("ADD").setGroup(cp5_particles_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("particles_extinction_d", 0, 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
+    cp5.addSlider("particles_extinction_l", 0, 3, 43, cp5_y += cp5_hs, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
   }
 
   cp5_n = 1;
@@ -320,7 +342,7 @@ void gui() {
   Group cp5_color = cp5.addGroup("PARTICLES COLOR")
     .setBackgroundColor(50)
     .setBarHeight(cp5_h)
-    .setBackgroundHeight(130); {
+    .setBackgroundHeight(147); {
     cp5_color.getCaptionLabel().align(CENTER, CENTER);
     cp5.addColorWheel("color_a", 0, 10, 100).setRGB(color(255, 0, 0)).setCaptionLabel("LEFT").setGroup(cp5_color);
     cp5.addColorWheel("color_b", 110, 10, 100).setRGB(color(0, 255, 0)).setCaptionLabel("RIGHT").setGroup(cp5_color);
@@ -333,6 +355,7 @@ void gui() {
     .setCollapseMode(Accordion.MULTI)
     .setMinItemHeight(0)
     .addItem(cp5_system)
+    .addItem(cp5_presets)
     .addItem(cp5_vectorfield)
     .addItem(cp5_particles)
     .addItem(cp5_particles_interaction)
@@ -364,6 +387,33 @@ void control() {
   if (keyPressed && key == 'w' || controls_show == false && mouseX < 100) {
     controls_show = true;
     cp5.show();
+  }
+
+  if (keyPressed && key == 'p') cp5.saveProperties(("\\presets\\preset.json"));
+
+  if (load_default) {
+    cp5.loadProperties(("\\presets\\default.json"));
+    load_default = false;
+  }
+  if (load_preset_1) {
+    cp5.loadProperties(("\\presets\\preset_1.json"));
+    load_preset_1 = false;
+  }
+  if (load_preset_2) {
+    cp5.loadProperties(("\\presets\\preset_2.json"));
+    load_preset_2 = false;
+  }
+  if (load_preset_3) {
+    cp5.loadProperties(("\\presets\\preset_3.json"));
+    load_preset_3 = false;
+  }
+  if (load_preset_4) {
+    cp5.loadProperties(("\\presets\\preset_4.json"));
+    load_preset_4 = false;
+  }
+  if (load_preset_5) {
+    cp5.loadProperties(("\\presets\\preset_5.json"));
+    load_preset_5 = false;
   }
 
   if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) noCursor();
@@ -464,7 +514,7 @@ void particles() {
         particles.addPull(particles_pull);
         particles.addNoise(particles_noise);
         if (particles_streams <= 10 && n < 3000) {
-          particles.addInteraction(particles_interaction, particles_interaction_d_min, particles_interaction_d_max, particles_interaction_force);
+          particles.addInteraction(particles_interaction, particles_interaction_d_min, particles_interaction_d_max, particles_interaction_force, particles_extinction, particles_extinction_d, particles_extinction_l);
         }
       }
       particles.display(particles_set);
@@ -741,6 +791,7 @@ class Particle {
   int active, lifespan, lifespan_start, lifespan_range, saturation;
 
   boolean connected = false;
+  boolean extinguished = false;
 
   color argb;
   int a, r, g, b;
@@ -790,7 +841,7 @@ class Particle {
     }
   }
 
-  void addInteraction(boolean set, int d_min, int d_max, float f) {
+  void addInteraction(boolean set, int d_min, int d_max, float f, boolean e, float e_d, float e_l) {
     if (set) {
       for (int i = particles.size() - 1; i > 0; i--) {
         Particle part = particles.get(i);
@@ -804,12 +855,15 @@ class Particle {
             part.connected = true;
             connected = false;
           }
-
           if (connected == false) {
             strokeWeight(1);
             stroke(r, g, b, a);
             line(pos.x, pos.y, part.pos.x, part.pos.y);
           }
+        }
+
+        if (d < e_d && e) {
+          lifespan -= e_l;
         }
       }
     }
