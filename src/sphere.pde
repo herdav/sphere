@@ -71,8 +71,8 @@ boolean particles_pulse = false;
 boolean particles_noise = false;
 boolean particles_pull = false;
 boolean particles_interaction = false;
-boolean particles_extinction = false;
-boolean addInteraction_force = false;
+boolean particles_set_extinction = false;
+boolean particles_set_interaction = false;
 boolean particles_birth_circle = true;
 boolean particles_calculate = true;
 boolean particles_set = true;
@@ -91,6 +91,7 @@ boolean background_display = true;
 boolean targets_display = false;
 boolean load_default, load_preset_1, load_preset_2, load_preset_3, load_preset_4,
 load_preset_5;
+int load_preset_last = 0;
 int background_color = 0;
 int theme = 0;
 int field_height = 1000;
@@ -101,7 +102,7 @@ PVector field_center = new PVector();
 void setup() {
   size(1800, 1000, P2D);
   //fullScreen(P2D);
-  blendMode(ADD);
+  //blendMode(ADD);
 
   String[] ports = Serial.list();
   if (ports.length == 0) println("No ports found!");
@@ -212,9 +213,8 @@ void fieldsize() {
 
 void gui() {
   int cp5_h = 14;
-  int cp5_x = 20;
-  int cp5_y = 0;
   int cp5_s = 4;
+  int cp5_x, cp5_y;
   int cp5_hs = cp5_h + cp5_s;
   int cp5_n, cp5_hn;
 
@@ -236,18 +236,18 @@ void gui() {
     cp5.addToggle("particles_calculate", cp5_w - 113, cp5_y += cp5_hs, 110, cp5_h).setCaptionLabel("PARTICLES CALCULATE").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
   }
 
-  cp5_n = 2;
+  cp5_n = 1;
   Group cp5_presets = cp5.addGroup("PRESETS")
     .setBackgroundColor(50)
     .setBarHeight(cp5_h)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s); {
     cp5_presets.getCaptionLabel().align(CENTER, CENTER);
-    cp5.addBang("load_default", 0, cp5_y = 3, 40, cp5_h).setCaptionLabel("DEFAULT").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addBang("load_preset_1", 43, cp5_y, 40, cp5_h).setCaptionLabel("PRESET 1").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addBang("load_preset_2", 86, cp5_y, 40, cp5_h).setCaptionLabel("PRESET 2").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addBang("load_preset_3", 129, cp5_y, 40, cp5_h).setCaptionLabel("PRESET 3").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addBang("load_preset_4", 0, cp5_y += cp5_hs, 40, cp5_h).setCaptionLabel("PRESET 4").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addBang("load_preset_5", 43, cp5_y, 40, cp5_h).setCaptionLabel("PRESET 5").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_default", cp5_x = 0, cp5_y = 3, 40, cp5_h).setCaptionLabel("DEFAULT").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_1", cp5_x += 43, cp5_y, 40, cp5_h).setCaptionLabel("PRESET 1").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_2", cp5_x += 43, cp5_y, 40, cp5_h).setCaptionLabel("PRESET 2").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_3", cp5_x += 43, cp5_y, 40, cp5_h).setCaptionLabel("PRESET 3").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_4", cp5_x += 43, cp5_y, 40, cp5_h).setCaptionLabel("PRESET 4").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_5", cp5_x += 43, cp5_y, 40, cp5_h).setCaptionLabel("PRESET 5").setGroup(cp5_presets).getCaptionLabel().align(CENTER, CENTER);
   }
 
   cp5_n = 3;
@@ -320,11 +320,11 @@ void gui() {
       .setRange(0, 100)
       .setRangeValues(particles_interaction_d_min, particles_interaction_d_max)
       .setBroadcast(true);
-    cp5.addToggle("addInteraction_force", 0, cp5_y += cp5_hs, 40, cp5_h).setCaptionLabel("ADD").setGroup(cp5_particles_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("particles_interaction_force", -0.5, 0.5, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
-    cp5.addToggle("particles_extinction", 0, cp5_y += cp5_hs, 40, cp5_h * 2 + 4).setCaptionLabel("ADD").setGroup(cp5_particles_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("particles_extinction_d", 0, 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
-    cp5.addSlider("particles_extinction_l", 0, 3, 43, cp5_y += cp5_hs, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
+    cp5.addToggle("particles_set_interaction", 0, cp5_y += cp5_hs, 40, cp5_h).setCaptionLabel("SET").setGroup(cp5_particles_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("particles_interaction_force", -0.2, 0.2, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
+    cp5.addToggle("particles_set_extinction", 0, cp5_y += cp5_hs, 40, cp5_h * 2 + 4).setCaptionLabel("SET").setGroup(cp5_particles_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("particles_extinction_d", 0, 14, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
+    cp5.addSlider("particles_extinction_l", 0, 2, 43, cp5_y += cp5_hs, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
   }
 
   cp5_n = 1;
@@ -333,7 +333,7 @@ void gui() {
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
     .setBarHeight(cp5_h); {
     cp5_effects.getCaptionLabel().align(CENTER, CENTER);
-    cp5.addBang("particles_pulse", 0, cp5_y = 3, 40, cp5_h).setCaptionLabel("PULSE").setGroup(cp5_effects).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("particles_pulse", 0, cp5_y = 3, 40, cp5_h).setCaptionLabel("DELETE").setGroup(cp5_effects).getCaptionLabel().align(CENTER, CENTER);
     cp5.addToggle("particles_pull", 43, cp5_y, 40, cp5_h).setCaptionLabel("PULL").setGroup(cp5_effects).getCaptionLabel().align(CENTER, CENTER);
     cp5.addToggle("particles_noise", 86, cp5_y, 40, cp5_h).setCaptionLabel("NOISE").setGroup(cp5_effects).getCaptionLabel().align(CENTER, CENTER);
     cp5.addToggle("particles_freeze", 129, cp5_y, 40, cp5_h).setCaptionLabel("FREEZE").setGroup(cp5_effects).getCaptionLabel().align(CENTER, CENTER);
@@ -351,7 +351,9 @@ void gui() {
     cp5.addSlider("background_color", 0, 255, 43, 130, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_color);
   }
 
-  cp5.addAccordion("acc").setPosition(20, 20).setWidth(cp5_w)
+  cp5_x = 20;
+  cp5_y = 20;
+  cp5.addAccordion("acc").setPosition(cp5_x, cp5_y).setWidth(cp5_w)
     .setCollapseMode(Accordion.MULTI)
     .setMinItemHeight(0)
     .addItem(cp5_system)
@@ -389,35 +391,50 @@ void control() {
     cp5.show();
   }
 
-  if (keyPressed && key == 'p') cp5.saveProperties(("\\presets\\preset.json"));
+  if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) noCursor();
+  else cursor();
+
+  if (keyPressed) {
+    if (key == 'p') cp5.saveProperties(("\\presets\\preset.json"));
+    if (key == 'u') cp5.saveProperties(("\\presets\\preset_" + str(load_preset_last) + ".json"));
+  }
 
   if (load_default) {
     cp5.loadProperties(("\\presets\\default.json"));
+    load_preset_last = 0;
+    println("Default setting is loaded.");
     load_default = false;
   }
   if (load_preset_1) {
     cp5.loadProperties(("\\presets\\preset_1.json"));
+    load_preset_last = 1;
+    println("Preset " + load_preset_last + " is loaded.");
     load_preset_1 = false;
   }
   if (load_preset_2) {
     cp5.loadProperties(("\\presets\\preset_2.json"));
+    load_preset_last = 2;
+    println("Preset " + load_preset_last + " is loaded.");
     load_preset_2 = false;
   }
   if (load_preset_3) {
     cp5.loadProperties(("\\presets\\preset_3.json"));
+    load_preset_last = 3;
+    println("Preset " + load_preset_last + " is loaded.");
     load_preset_3 = false;
   }
   if (load_preset_4) {
     cp5.loadProperties(("\\presets\\preset_4.json"));
+    load_preset_last = 4;
+    println("Preset " + load_preset_last + " is loaded.");
     load_preset_4 = false;
   }
   if (load_preset_5) {
     cp5.loadProperties(("\\presets\\preset_5.json"));
+    load_preset_last = 5;
+    println("Preset " + load_preset_last + " is loaded.");
     load_preset_5 = false;
   }
-
-  if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) noCursor();
-  else cursor();
 }
 
 void mouseClicked() {
@@ -513,8 +530,8 @@ void particles() {
         particles.addPulse(particles_pulse);
         particles.addPull(particles_pull);
         particles.addNoise(particles_noise);
-        if (particles_streams <= 10 && n < 3000) {
-          particles.addInteraction(particles_interaction, particles_interaction_d_min, particles_interaction_d_max, particles_interaction_force, particles_extinction, particles_extinction_d, particles_extinction_l);
+        if (particles_streams <= 10 && n < 5000) {
+          particles.addInteraction(particles_interaction, particles_interaction_d_min, particles_interaction_d_max, particles_interaction_force, particles_extinction_d, particles_extinction_l);
         }
       }
       particles.display(particles_set);
@@ -796,23 +813,12 @@ class Particle {
   color argb;
   int a, r, g, b;
 
-  int pulse_time_cnt;
-  float particles_speed_save;
-  float pulse_speed;
-  float pulse_speed_min = 0.1;
-  float pulse_speed_max = 20;
-  float pulse_time_a = 20;
-  float pulse_time_b = 20;
-  float pulse_time_tot;
-
   Particle(float x, float y, int l, color c) {
     pos.x = x;
     pos.y = y;
     lifespan = l;
     lifespan_start = l;
     argb = c;
-    particles_speed_save = particles_speed;
-    pulse_time_tot = pulse_time_a + pulse_time_b;
   }
 
   void addPull(boolean set) {
@@ -820,28 +826,19 @@ class Particle {
   }
 
   void addNoise(boolean set) {
-    if (set) aclr.mult(random(0.95, 1.05));
+    if (set) {
+      pos.x += random(-0.1, 0.1);
+      pos.y += random(-0.1, 0.1);
+    }
   }
 
   void addPulse(boolean set) {
     if (set) {
-      pulse_time_cnt++;
-      if (pulse_time_cnt <= pulse_time_a) {
-        pulse_speed = pulse_speed_min - particles_speed;
-      }
-      if (pulse_time_cnt > pulse_time_a && pulse_time_cnt <= pulse_time_tot) {
-        pulse_speed = particles_speed - (pulse_speed_max - particles_speed) / (pulse_time_b * (pulse_time_cnt - pulse_time_a));
-      }
-      if (pulse_time_cnt == pulse_time_tot) {
-        pulse_speed = 0;
-        pulse_time_cnt = 0;
-        particles_pulse = false;
-      }
-      pos.add(pull);
+      lifespan = 0;
     }
   }
 
-  void addInteraction(boolean set, int d_min, int d_max, float f, boolean e, float e_d, float e_l) {
+  void addInteraction(boolean set, int d_min, int d_max, float f, float e_d, float e_l) {
     if (set) {
       for (int i = particles.size() - 1; i > 0; i--) {
         Particle part = particles.get(i);
@@ -849,7 +846,7 @@ class Particle {
         float d = force.mag();
 
         if (d < d_max && d > d_min) {
-          if (addInteraction_force) {
+          if (particles_set_interaction) {
             force.setMag(f);
             aclr.add(force);
             part.connected = true;
@@ -862,8 +859,10 @@ class Particle {
           }
         }
 
-        if (d < e_d && e) {
-          lifespan -= e_l;
+        if (d < e_d) {
+          if (particles_set_extinction) {
+            lifespan -= e_l;
+          }
         }
       }
     }
@@ -877,7 +876,7 @@ class Particle {
       aclr.add(vctr.force);
     }
 
-    aclr.setMag(particles_speed + pulse_speed);
+    aclr.setMag(particles_speed);
     pos.add(aclr);
   }
 
