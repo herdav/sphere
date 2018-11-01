@@ -102,7 +102,7 @@ PVector field_center = new PVector();
 void setup() {
   size(1800, 1000, P2D);
   //fullScreen(P2D);
-  //blendMode(ADD);
+  blendMode(ADD);
 
   String[] ports = Serial.list();
   if (ports.length == 0) println("No ports found!");
@@ -391,8 +391,11 @@ void control() {
     cp5.show();
   }
 
-  if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) noCursor();
-  else cursor();
+  if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) {
+    noCursor();
+  } else {
+    cursor();
+  }
 
   if (keyPressed) {
     if (key == 'p') cp5.saveProperties(("\\presets\\preset.json"));
@@ -608,10 +611,11 @@ class Pointer {
   int graph_count = 0, path_count = 0;
   color gray = color(50), brgt = color(255);
 
-  Pointer(float x, float y, float diameter) {
+  Pointer(float x, float y, float d) {
     orgin.x = x;
     orgin.y = y;
-    d = diameter;
+    this.d = d;
+
     r = d / 2;
     graph_store = new float[int(d)];
     for (int i = 0; i < path_store.length; i++) path_store[i] = new PVector();
@@ -716,9 +720,9 @@ class Vectorfield {
 
   float magnitude, dist;
 
-  Vectorfield(PVector pos) {
-    orgin.x = pos.x;
-    orgin.y = pos.y;
+  Vectorfield(PVector orgin) {
+    this.orgin.x = orgin.x;
+    this.orgin.y = orgin.y;
   }
 
   void target(PVector target) {
@@ -808,17 +812,17 @@ class Particle {
   int active, lifespan, lifespan_start, lifespan_range, saturation;
 
   boolean connected = false;
-  boolean extinguished = false;
 
   color argb;
   int a, r, g, b;
 
-  Particle(float x, float y, int l, color c) {
+  Particle(float x, float y, int lifespan, color argb) {
     pos.x = x;
     pos.y = y;
-    lifespan = l;
-    lifespan_start = l;
-    argb = c;
+    this.lifespan = lifespan;
+    this.argb = argb;
+
+    lifespan_start = lifespan;
   }
 
   void addPull(boolean set) {
@@ -869,7 +873,7 @@ class Particle {
   }
 
   void update() {
-    active = int(round((pos.y - field_border_top) / vectorfield_segment_d) * vectorfield_segment_ny + round((pos.x - field_border_left) / vectorfield_segment_d)); // detect active vector
+    active = int((pos.y - field_border_top) / vectorfield_segment_d) * vectorfield_segment_ny + int((pos.x - field_border_left) / vectorfield_segment_d); // detect active vector
 
     if (active >= 0 && active < vectors.size()) {
       Vectorfield vctr = vectors.get(active);
@@ -891,8 +895,11 @@ class Particle {
   void display(boolean set) {
     lifespan_range = int(map(lifespan, 0, lifespan_start, 255, 0));
 
-    if (lifespan_range < particles_saturation_min || lifespan_range > particles_saturation_max) saturation = particles_saturation_min_limit;
-    else saturation = int(map(lifespan_range, particles_saturation_min, particles_saturation_max, particles_saturation_min_limit, particles_saturation_max_limit));
+    if (lifespan_range < particles_saturation_min || lifespan_range > particles_saturation_max) {
+      saturation = particles_saturation_min_limit;
+    } else {
+      saturation = int(map(lifespan_range, particles_saturation_min, particles_saturation_max, particles_saturation_min_limit, particles_saturation_max_limit));
+    }
 
     a = saturation;
     r = (argb >> 16) & 0xFF;
