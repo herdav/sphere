@@ -22,13 +22,19 @@ stream_data_poti, stream_data_rpm, stream_data_angle_stp,
 stream_data_angle_rot;
 int stream_data_fctr = 1000;
 
-
 // POINTER --------------------------------------------------------------
 Pointer pointer_yaw, pointer_x_axis, pointer_y_axis, pointer_stp;
 Pointer pointer_targets;
 PVector pointer_rstr = new PVector();
 boolean pointer_control = false;
 int pointer_margin_x = 300;
+
+// TARGETS --------------------------------------------------------------
+Target targt;
+ArrayList < Target > targets;
+boolean targets_removed = false;
+boolean targets_pointer = false;
+boolean targets_mouse = true;
 
 // VECTORFIELD ----------------------------------------------------------
 Vectorfield vctr;
@@ -39,34 +45,40 @@ float vectorfield_segment_delay = 0.03;
 int vectorfield_segment_nx = 50, vectorfield_segment_ny;
 int vectorfield_segment_n, vectorfield_segment_n_max = 300;
 
-// TARGETS --------------------------------------------------------------
-Target targt;
-ArrayList < Target > targets;
-boolean targets_removed = false;
-boolean targets_pointer = false;
-boolean targets_mouse = true;
+// PARTICLE CELLS ------------------------------------------------------
+Pariclecell prtcl;
+ArrayList < Pariclecell > particlecells;
+PVector pariclecell_segment_pos = new PVector();
+float pariclecell_segment_d, pariclecell_segment_r;
+int pariclecell_segment_nx = 20, pariclecell_segment_ny;
+int pariclecell_segment_n, pariclecell_segment_n_max = 50;
 
 // PARTICLES ------------------------------------------------------------
 Particle part;
 ArrayList < Particle > particles;
-int particles_count;
+int particles_id;
+int particles_count_birthrate;
 int particles_birthrate = 1;
 int particles_size = 1;
+int particles_size_count;
 int particles_streams = 10;
 int particles_streams_circle;
 int particles_lifespan = 40;
+int particles_lifespan_max = 200;
 int particles_saturation_min = 0;
 int particles_saturation_max = 255;
 int particles_saturation_min_limit = 0;
 int particles_saturation_max_limit = 255;
 int particles_interaction_d_min = 5;
 int particles_interaction_d_max = 30;
+int particles_calculationload_max;
+int particles_calculationload_eff;
+float particles_calculationload;
 float particles_interaction_force = 0;
 float particles_extinction_d = 1;
 float particles_extinction_l = 1;
 float particles_speed = 8;
 float particles_lx, particles_ly;
-boolean particles_birth_square = false;
 boolean particles_pulse = false;
 boolean particles_noise = false;
 boolean particles_pull = false;
@@ -77,7 +89,6 @@ boolean particles_birth_circle = true;
 boolean particles_calculate = true;
 boolean particles_set = true;
 boolean particles_freeze = false;
-float particles_birth_square_d;
 float particles_birth_circle_r;
 PVector paricles_birth_circle_pos = new PVector();
 
@@ -102,7 +113,7 @@ PVector field_center = new PVector();
 void setup() {
   size(1800, 1000, P2D);
   //fullScreen(P2D);
-  blendMode(ADD);
+  //blendMode(ADD);
 
   String[] ports = Serial.list();
   if (ports.length == 0) println("No ports found!");
@@ -124,8 +135,8 @@ void setup() {
   pointer_stp = new Pointer(pointer_rstr.x, height - pointer_rstr.y, 200);
 
   pointer_targets = new Pointer(field_center.x, field_center.y, field_height / 1.5);
-
   vectors = new ArrayList < Vectorfield > ();
+  particlecells = new ArrayList < Pariclecell > ();
   particles = new ArrayList < Particle > ();
   targets = new ArrayList < Target > ();
   targets.add(new Target(field_center.x, field_center.y));
@@ -139,6 +150,7 @@ void draw() {
   record();
   targets();
   field();
+  cells();
   particles();
   data();
   endRecord();
@@ -270,14 +282,14 @@ void gui() {
     cp5.addSlider("vectorfield_segment_delay", 0.01, 0.2, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
   }
 
-  cp5_n = 8;
+  cp5_n = 7;
   Group cp5_particles = cp5.addGroup("PARTICLES")
     .setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
     .setBarHeight(cp5_h); {
     cp5_particles.getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("particles_streams", 1, 200, 0, cp5_y = 3, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
-    cp5.addSlider("particles_lifespan", 1, 200, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
+    cp5.addSlider("particles_lifespan", 1, particles_lifespan_max, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
     cp5.addSlider("particles_speed", -2, 40, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
     cp5.addToggle("particles_set", 0, cp5_y += cp5_hs, 40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("particles_size", 1, 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
@@ -300,18 +312,17 @@ void gui() {
     cp5.addToggle("particles_birth_circle", 0, cp5_y += cp5_hs, 40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("particles_birth_circle_r", 1, field_height / 2 - 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles)
       .setValue(field_height / 2 - vectorfield_segment_d);
-    cp5.addToggle("particles_birth_square", 0, cp5_y += cp5_hs, 40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("particles_birth_square_d", 1, field_height / 2 - 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles)
-      .setValue(field_height / 2 - vectorfield_segment_d);
   }
 
-  cp5_n = 4;
+  cp5_n = 5;
   Group cp5_particles_interaction = cp5.addGroup("PARTICLES INTERACTION")
     .setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
     .setBarHeight(cp5_h); {
     cp5_particles_interaction.getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("particles_interaction", 0, cp5_y = 3, 40, cp5_h).setCaptionLabel("ADD").setGroup(cp5_particles_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5_vectorfield.getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("pariclecell_segment_nx", 8, pariclecell_segment_n_max, 0, cp5_y = 3, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
+    cp5.addToggle("particles_interaction", 0, cp5_y += cp5_hs, 40, cp5_h).setCaptionLabel("ADD").setGroup(cp5_particles_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addRange("PARTICLES_INTERACTION_RANGE").setGroup(cp5_particles_interaction)
       .setBroadcast(false)
       .setPosition(43, cp5_y)
@@ -321,7 +332,7 @@ void gui() {
       .setRangeValues(particles_interaction_d_min, particles_interaction_d_max)
       .setBroadcast(true);
     cp5.addToggle("particles_set_interaction", 0, cp5_y += cp5_hs, 40, cp5_h).setCaptionLabel("SET").setGroup(cp5_particles_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("particles_interaction_force", -0.2, 0.2, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
+    cp5.addSlider("particles_interaction_force", -10, 10, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
     cp5.addToggle("particles_set_extinction", 0, cp5_y += cp5_hs, 40, cp5_h * 2 + 4).setCaptionLabel("SET").setGroup(cp5_particles_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("particles_extinction_d", 0, 14, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
     cp5.addSlider("particles_extinction_l", 0, 2, 43, cp5_y += cp5_hs, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles_interaction);
@@ -391,11 +402,8 @@ void control() {
     cp5.show();
   }
 
-  if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) {
-    noCursor();
-  } else {
-    cursor();
-  }
+  if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) noCursor();
+  else cursor();
 
   if (keyPressed) {
     if (key == 'p') cp5.saveProperties(("\\presets\\preset.json"));
@@ -487,20 +495,10 @@ void targets() {
 
 void particles() {
   if (particles_calculate) {
-    particles_count++;
-    if (particles_count == particles_birthrate) {
-      particles_count = 0;
+    particles_count_birthrate++;
+    if (particles_count_birthrate == particles_birthrate) {
+      particles_count_birthrate = 0;
 
-      if (particles_birth_square) {
-        particles_ly = ((field_height - 2 * vectorfield_segment_d) / particles_streams);
-        particles_lx = particles_ly;
-        for (int i = 0; i <= particles_streams; i++) {
-          particles.add(new Particle(field_border_left + vectorfield_segment_d, field_border_top + vectorfield_segment_d + particles_ly * i, particles_lifespan, color_a)); // left
-          particles.add(new Particle(width - vectorfield_segment_d, field_border_top + vectorfield_segment_d + particles_ly * i, particles_lifespan, color_b)); // right
-          particles.add(new Particle(field_border_left + vectorfield_segment_d + particles_lx * i, field_border_top + vectorfield_segment_d, particles_lifespan, color_c)); // top
-          particles.add(new Particle(field_border_left + vectorfield_segment_d + particles_lx * i, height - field_border_bot - vectorfield_segment_d, particles_lifespan, color_c)); // bottom
-        }
-      }
       if (particles_birth_circle) {
         particles_streams_circle = 4 * particles_streams;
         for (int i = 0; i <= particles_streams_circle; i++) {
@@ -508,37 +506,68 @@ void particles() {
           paricles_birth_circle_pos.y = field_center.y - particles_birth_circle_r * sin((PI * i * 2) / (particles_streams_circle));
 
           if (i >= 0 && i < particles_streams_circle / 3) {
-            particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, particles_lifespan, color_a));
+            particles.add(particles_id, new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, particles_lifespan, color_a));
           }
           if (i >= particles_streams_circle / 3 && i < particles_streams_circle / 3 * 2) {
-            particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, particles_lifespan, color_b));
+            particles.add(particles_id, new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, particles_lifespan, color_b));
           }
           if (i >= particles_streams_circle / 3 * 2 && i < particles_streams_circle) {
-            particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, particles_lifespan, color_c));
+            particles.add(particles_id, new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, particles_lifespan, color_c));
           }
         }
       }
     }
 
-    for (int i = particles.size() - 1; i > 0; i--) {
+    for (int i = 0; i < particles.size(); i++) {
+      Particle part = particles.get(i);
+      part.getListPos(i);
+      part.lifespan();
+      part.addPulse(particles_pulse);
+      part.addPull(particles_pull);
+      part.addNoise(particles_noise);
+      part.activeCell();
+      part.addInteraction(particles_interaction, particles_interaction_d_min, particles_interaction_d_max, particles_interaction_force, particles_extinction_d, particles_extinction_l);
+      part.display(particles_set);
+      part.update();
+    }
+
+    particles_calculationload_max = int(sq(particles.size()));
+
+    for (int i = particles.size() - 1; i >= 0; i--) {
       Particle part = particles.get(i);
       if (part.lifespan <= 0) particles.remove(i);
     }
+  }
+}
 
-    int n = particles.size();
-    for (Particle particles: particles) {
-      if (particles_freeze != true) {
-        particles.update();
-        particles.lifespan();
-        particles.addPulse(particles_pulse);
-        particles.addPull(particles_pull);
-        particles.addNoise(particles_noise);
-        if (particles_streams <= 10 && n < 5000) {
-          particles.addInteraction(particles_interaction, particles_interaction_d_min, particles_interaction_d_max, particles_interaction_force, particles_extinction_d, particles_extinction_l);
-        }
+void cells() {
+  pariclecell_segment_ny = pariclecell_segment_nx;
+  pariclecell_segment_n = pariclecell_segment_nx * pariclecell_segment_ny;
+
+  if (pariclecell_segment_n != particlecells.size()) {
+    for (int i = particles.size() - 1; i >= 0; i--) particles.remove(i);
+    for (int i = particlecells.size() - 1; i >= 0; i--) particlecells.remove(i);
+
+    if (field_height % pariclecell_segment_ny > 0) pariclecell_segment_nx++;
+    pariclecell_segment_d = field_height / pariclecell_segment_nx;
+    pariclecell_segment_r = pariclecell_segment_d / 2;
+    for (int i = 0; i < pariclecell_segment_ny; i++) {
+      for (int j = 0; j < pariclecell_segment_nx; j++) {
+        pariclecell_segment_pos.x = field_border_left + j * pariclecell_segment_d + pariclecell_segment_r;
+        pariclecell_segment_pos.y = field_border_top + i * pariclecell_segment_d + pariclecell_segment_r;
+        particlecells.add(new Pariclecell(pariclecell_segment_pos));
       }
-      particles.display(particles_set);
     }
+  }
+
+  particles_calculationload_eff = 0;
+  for (int i = 0; i < particlecells.size(); i++) {
+    Pariclecell prtcl = particlecells.get(i);
+    if (prtcl.id.size() > 0) {
+      prtcl.display(false);
+      particles_calculationload_eff += int(sq(prtcl.id.size()));
+    }
+    prtcl.reset();
   }
 }
 
@@ -547,7 +576,9 @@ void field() {
   vectorfield_segment_n = vectorfield_segment_nx * vectorfield_segment_ny;
 
   if (vectorfield_segment_n != vectors.size()) {
+    for (int i = particles.size() - 1; i >= 0; i--) particles.remove(i);
     for (int i = vectors.size() - 1; i >= 0; i--) vectors.remove(i);
+
     if (field_height % vectorfield_segment_ny > 0) vectorfield_segment_nx++;
     vectorfield_segment_d = field_height / vectorfield_segment_nx;
     vectorfield_segment_r = vectorfield_segment_d / 2;
@@ -563,6 +594,7 @@ void field() {
 
   for (int i = 0; i < vectorfield_segment_n; i++) {
     Vectorfield vctr = vectors.get(i);
+
     for (int j = targets.size() - 1; j >= 0; j--) {
       vctr.target(targets.get(j).pos);
       vctr.magnitude(vectorfield_segment_delay);
@@ -574,17 +606,22 @@ void field() {
 
 void data() {
   if (controls_show) {
+
+    particles_calculationload = float(int(1000 * float(particles_calculationload_eff) / float(particles_calculationload_max))) / 10;
+
     textSize(9);
     fill(255);
     textAlign(LEFT, BOTTOM);
-    text("FPS\n" + "VECTORS\n" + "PARTICLES\n" + "TARGETS\n\n" + "DEVICE\n\n" +
+    text("FPS\n" + "VECTORS\n" + "PARTICLES\n" + "TARGETS\n" + "CELLS\n" + "WORKLOAD\n\n" + "DEVICE\n\n" +
       year() + '/' + month() + '/' + day() + "\n\n" +
       "David Herren", 20, height - 20);
 
     text(float(int(float(frameCount) / millis() * 10000)) / 10 + "\n" +
       vectors.size() + "\n" +
       particles.size() + "\n" +
-      targets.size() + "\n\n" +
+      targets.size() + "\n" +
+      particlecells.size() + "\n" +
+      particles_calculationload + "\n\n" +
       stream_port_name + "\n\n" +
       hour() + ':' + minute() + ':' + second() + "\n\nsphere.pde", 100, height - 20);
   }
@@ -611,11 +648,10 @@ class Pointer {
   int graph_count = 0, path_count = 0;
   color gray = color(50), brgt = color(255);
 
-  Pointer(float x, float y, float d) {
+  Pointer(float x, float y, float diameter) {
     orgin.x = x;
     orgin.y = y;
-    this.d = d;
-
+    d = diameter;
     r = d / 2;
     graph_store = new float[int(d)];
     for (int i = 0; i < path_store.length; i++) path_store[i] = new PVector();
@@ -733,10 +769,10 @@ class Vectorfield {
     direct.add(orgin);
   }
 
-  void magnitude(float aclr) {
+  void magnitude(float velocity) {
     offset = PVector.sub(direct, result);
     magnitude = offset.mag();
-    offset.mult(aclr);
+    offset.mult(velocity);
     result.add(offset);
     force = PVector.sub(result, orgin);
   }
@@ -801,15 +837,46 @@ class Vectorfield {
   }
 }
 
+class Pariclecell {
+  IntList id;
+
+  PVector orgin = new PVector();
+  color c;
+
+  Pariclecell(PVector orgin) {
+    this.orgin.x = orgin.x;
+    this.orgin.y = orgin.y;
+
+    id = new IntList();
+  }
+
+  void reset() {
+    id.clear();
+  }
+
+  void display(boolean display) {
+    if (display) {
+      fill(255, 50);
+      noStroke();
+      rectMode(CENTER);
+      rect(orgin.x, orgin.y, pariclecell_segment_d, pariclecell_segment_d);
+    }
+  }
+}
+
 class Particle {
   PVector pos = new PVector();
-  PVector aclr = new PVector();
+  PVector velocity = new PVector();
   PVector force = new PVector();
   PVector pull = new PVector();
   PVector repul = new PVector();
 
   float dist;
-  int active, lifespan, lifespan_start, lifespan_range, saturation;
+  int active_vector, lifespan, lifespan_start, lifespan_range, saturation;
+
+  int listPos;
+  int active_cell_x, active_cell_y, active_cell;
+  int active_cell_l, active_cell_r, active_cell_t, active_cell_b, active_cell_lt, active_cell_rt, active_cell_lb, active_cell_rb;
 
   boolean connected = false;
 
@@ -819,14 +886,105 @@ class Particle {
   Particle(float x, float y, int lifespan, color argb) {
     pos.x = x;
     pos.y = y;
+
     this.lifespan = lifespan;
     this.argb = argb;
 
     lifespan_start = lifespan;
   }
 
+  void getListPos(int listPos) {
+    this.listPos = listPos;
+  }
+
+  void activeCell() {
+    active_cell_x = int((pos.x - field_border_left) / pariclecell_segment_d);
+    active_cell_y = int((pos.y - field_border_top) / pariclecell_segment_d);
+
+    active_cell = active_cell_y * pariclecell_segment_ny + active_cell_x; // detect active cell
+
+    if (active_cell >= 0 && active_cell < particlecells.size()) {
+      Pariclecell prtcl = particlecells.get(active_cell);
+      prtcl.id.append(listPos);
+
+      active_cell_l = active_cell_y * pariclecell_segment_ny + (active_cell_x - 1); // calculate surrounding cells
+      active_cell_r = active_cell_y * pariclecell_segment_ny + (active_cell_x + 1);
+      active_cell_t = (active_cell_y - 1) * pariclecell_segment_ny + active_cell_x;
+      active_cell_b = (active_cell_y + 1) * pariclecell_segment_ny + active_cell_x;
+      active_cell_lt = (active_cell_y - 1) * pariclecell_segment_ny + (active_cell_x - 1);
+      active_cell_rt = (active_cell_y - 1) * pariclecell_segment_ny + (active_cell_x + 1);
+      active_cell_lb = (active_cell_y + 1) * pariclecell_segment_ny + (active_cell_x - 1);
+      active_cell_rb = (active_cell_y + 1) * pariclecell_segment_ny + (active_cell_x + 1);
+
+      if (active_cell_x > 0 && active_cell_x < pariclecell_segment_nx - 1 && active_cell_y > 0 && active_cell_y < pariclecell_segment_ny - 1) {
+        particlecells.get(active_cell_l).id.append(listPos);
+        particlecells.get(active_cell_r).id.append(listPos);
+        particlecells.get(active_cell_t).id.append(listPos);
+        particlecells.get(active_cell_b).id.append(listPos);
+        particlecells.get(active_cell_lt).id.append(listPos);
+        particlecells.get(active_cell_rt).id.append(listPos);
+        particlecells.get(active_cell_lb).id.append(listPos);
+        particlecells.get(active_cell_rb).id.append(listPos);
+      }
+    }
+  }
+
+  void addInteraction(boolean set, int d_min, int d_max, float f, float e_d, float e_l) {
+    if (set) {
+      if (active_cell >= 0 && active_cell < particlecells.size()) {
+
+        Pariclecell prtcl = particlecells.get(active_cell);
+        if (prtcl.id.size() > 1) {
+          for (int i = 0; i < prtcl.id.size(); i++) { // load only the relevant particles
+            Particle part = particles.get(prtcl.id.get(i));
+
+            force = PVector.sub(part.pos, pos);
+            float d = force.mag();
+
+            if (d < d_max && d > d_min) {
+              if (particles_set_interaction) {
+                force.setMag(f);
+                velocity.add(force);
+                part.connected = true;
+                connected = false;
+              }
+              if (connected == false) {
+                strokeWeight(1);
+                stroke(r, g, b, a);
+                line(pos.x, pos.y, part.pos.x, part.pos.y);
+              }
+            }
+            if (d < e_d && particles_set_extinction) {
+              lifespan -= e_l;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  void update() {
+    active_vector = int((pos.y - field_border_top) / vectorfield_segment_d) * vectorfield_segment_ny + int((pos.x - field_border_left) / vectorfield_segment_d); // detect active vector
+
+    if (active_vector >= 0 && active_vector < vectors.size()) {
+      Vectorfield vctr = vectors.get(active_vector);
+      velocity.add(vctr.force);
+    }
+
+    velocity.setMag(particles_speed);
+    pos.add(velocity);
+  }
+
+  void lifespan() {
+    lifespan--;
+    if (pos.x <= vectorfield_segment_d + field_border_left || pos.x >= width - vectorfield_segment_d ||
+      pos.y <= field_border_top + vectorfield_segment_d || pos.y >= height - field_border_bot - vectorfield_segment_d) {
+      lifespan = 0;
+    }
+  }
+
   void addPull(boolean set) {
-    if (set) pull = aclr.mult(-1);
+    if (set) pull = velocity.mult(-1);
   }
 
   void addNoise(boolean set) {
@@ -842,64 +1000,11 @@ class Particle {
     }
   }
 
-  void addInteraction(boolean set, int d_min, int d_max, float f, float e_d, float e_l) {
-    if (set) {
-      for (int i = particles.size() - 1; i > 0; i--) {
-        Particle part = particles.get(i);
-        force = PVector.sub(part.pos, pos);
-        float d = force.mag();
-
-        if (d < d_max && d > d_min) {
-          if (particles_set_interaction) {
-            force.setMag(f);
-            aclr.add(force);
-            part.connected = true;
-            connected = false;
-          }
-          if (connected == false) {
-            strokeWeight(1);
-            stroke(r, g, b, a);
-            line(pos.x, pos.y, part.pos.x, part.pos.y);
-          }
-        }
-
-        if (d < e_d) {
-          if (particles_set_extinction) {
-            lifespan -= e_l;
-          }
-        }
-      }
-    }
-  }
-
-  void update() {
-    active = int((pos.y - field_border_top) / vectorfield_segment_d) * vectorfield_segment_ny + int((pos.x - field_border_left) / vectorfield_segment_d); // detect active vector
-
-    if (active >= 0 && active < vectors.size()) {
-      Vectorfield vctr = vectors.get(active);
-      aclr.add(vctr.force);
-    }
-
-    aclr.setMag(particles_speed);
-    pos.add(aclr);
-  }
-
-  void lifespan() {
-    lifespan--;
-    if (pos.x <= vectorfield_segment_d + field_border_left || pos.x >= width - vectorfield_segment_d ||
-      pos.y <= field_border_top + vectorfield_segment_d || pos.y >= height - field_border_bot - vectorfield_segment_d) {
-      lifespan = 0;
-    }
-  }
-
   void display(boolean set) {
     lifespan_range = int(map(lifespan, 0, lifespan_start, 255, 0));
 
-    if (lifespan_range < particles_saturation_min || lifespan_range > particles_saturation_max) {
-      saturation = particles_saturation_min_limit;
-    } else {
-      saturation = int(map(lifespan_range, particles_saturation_min, particles_saturation_max, particles_saturation_min_limit, particles_saturation_max_limit));
-    }
+    if (lifespan_range < particles_saturation_min || lifespan_range > particles_saturation_max) saturation = particles_saturation_min_limit;
+    else saturation = int(map(lifespan_range, particles_saturation_min, particles_saturation_max, particles_saturation_min_limit, particles_saturation_max_limit));
 
     a = saturation;
     r = (argb >> 16) & 0xFF;
