@@ -46,12 +46,13 @@ int vctr_segment_nx = 50, vctr_segment_ny;
 int vctr_segment_n, vctr_segment_n_max = 300;
 
 // PARTICLE CELLS ------------------------------------------------------
-Pariclecell prtcl;
-ArrayList < Pariclecell > particlecells;
-PVector prtcl_segment_pos = new PVector();
-float prtcl_segment_d, prtcl_segment_r;
-int prtcl_segment_nx = 20, prtcl_segment_ny;
-int prtcl_segment_n, prtcl_segment_n_max = 50;
+Pariclecell cell;
+ArrayList < Pariclecell > cells;
+PVector cell_segment_pos = new PVector();
+float cell_segment_d, cell_segment_r;
+int cell_segment_nx = 20, cell_segment_ny;
+int cell_segment_n, cell_segment_n_max = 50;
+int cell_set_max_entries = 100;
 
 // PARTICLES ------------------------------------------------------------
 Particle part;
@@ -108,8 +109,8 @@ int field_border_left, field_border_top, field_border_bot;
 PVector field_center = new PVector();
 
 void setup() {
-  size(1800, 1000, P2D);
-  //fullScreen(P2D);
+  //size(1800, 1000, P2D);
+  fullScreen(P2D);
   blendMode(ADD);
 
   String[] ports = Serial.list();
@@ -133,7 +134,7 @@ void setup() {
 
   pointer_targets = new Pointer(field_center.x, field_center.y, field_height / 1.5);
   vectors = new ArrayList < Vectorfield > ();
-  particlecells = new ArrayList < Pariclecell > ();
+  cells = new ArrayList < Pariclecell > ();
   particles = new ArrayList < Particle > ();
   targets = new ArrayList < Target > ();
   targets.add(new Target(field_center.x, field_center.y));
@@ -311,14 +312,15 @@ void gui() {
       .setValue(field_height / 2 - vctr_segment_d);
   }
 
-  cp5_n = 5;
+  cp5_n = 6;
   Group cp5_part_interaction = cp5.addGroup("PARTICLES INTERACTION")
     .setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
     .setBarHeight(cp5_h); {
     cp5_part_interaction.getCaptionLabel().align(CENTER, CENTER);
     cp5_vectorfield.getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("prtcl_segment_nx", 8, prtcl_segment_n_max, 0, cp5_y = 3, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
+    cp5.addSlider("cell_segment_nx", 8, cell_segment_n_max, 0, cp5_y = 3, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
+    cp5.addSlider("cell_set_max_entries", 2, 200, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
     cp5.addToggle("part_interaction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("ADD").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addRange("part_interaction_range").setGroup(cp5_part_interaction)
       .setBroadcast(false)
@@ -531,6 +533,7 @@ void particles() {
     }
 
     part_calculationload_max = int(sq(particles.size()));
+    part_calculationload = float(int(1000 * float(part_calculationload_eff) / float(part_calculationload_max))) / 10;
 
     for (int i = particles.size() - 1; i >= 0; i--) {
       Particle part = particles.get(i);
@@ -540,33 +543,33 @@ void particles() {
 }
 
 void cells() {
-  prtcl_segment_ny = prtcl_segment_nx;
-  prtcl_segment_n = prtcl_segment_nx * prtcl_segment_ny;
+  cell_segment_ny = cell_segment_nx;
+  cell_segment_n = cell_segment_nx * cell_segment_ny;
 
-  if (prtcl_segment_n != particlecells.size()) {
+  if (cell_segment_n != cells.size()) {
     for (int i = particles.size() - 1; i >= 0; i--) particles.remove(i);
-    for (int i = particlecells.size() - 1; i >= 0; i--) particlecells.remove(i);
+    for (int i = cells.size() - 1; i >= 0; i--) cells.remove(i);
 
-    if (field_height % prtcl_segment_ny > 0) prtcl_segment_nx++;
-    prtcl_segment_d = field_height / prtcl_segment_nx;
-    prtcl_segment_r = prtcl_segment_d / 2;
-    for (int i = 0; i < prtcl_segment_ny; i++) {
-      for (int j = 0; j < prtcl_segment_nx; j++) {
-        prtcl_segment_pos.x = field_border_left + j * prtcl_segment_d + prtcl_segment_r;
-        prtcl_segment_pos.y = field_border_top + i * prtcl_segment_d + prtcl_segment_r;
-        particlecells.add(new Pariclecell(prtcl_segment_pos));
+    if (field_height % cell_segment_ny > 0) cell_segment_nx++;
+    cell_segment_d = field_height / cell_segment_nx;
+    cell_segment_r = cell_segment_d / 2;
+    for (int i = 0; i < cell_segment_ny; i++) {
+      for (int j = 0; j < cell_segment_nx; j++) {
+        cell_segment_pos.x = field_border_left + j * cell_segment_d + cell_segment_r;
+        cell_segment_pos.y = field_border_top + i * cell_segment_d + cell_segment_r;
+        cells.add(new Pariclecell(cell_segment_pos));
       }
     }
   }
 
   part_calculationload_eff = 0;
-  for (int i = 0; i < particlecells.size(); i++) {
-    Pariclecell prtcl = particlecells.get(i);
-    if (prtcl.id.size() > 0) {
-      prtcl.display(false);
-      part_calculationload_eff += int(sq(prtcl.id.size()));
+  for (int i = 0; i < cells.size(); i++) {
+    Pariclecell cell = cells.get(i);
+    if (cell.list.size() > 0) {
+      cell.display(false);
+      part_calculationload_eff += int(sq(cell.list.size()));
     }
-    prtcl.reset();
+    cell.reset();
   }
 }
 
@@ -606,7 +609,7 @@ void field() {
 void data() {
   if (controls_show) {
 
-    part_calculationload = float(int(1000 * float(part_calculationload_eff) / float(part_calculationload_max))) / 10;
+    
 
     textSize(9);
     fill(255);
@@ -619,7 +622,7 @@ void data() {
       vectors.size() + "\n" +
       particles.size() + "\n" +
       targets.size() + "\n" +
-      particlecells.size() + "\n" +
+      cells.size() + "\n" +
       part_calculationload + "%\n\n" +
       stream_port_name + "\n\n" +
       hour() + ':' + minute() + ':' + second() + "\n\nsphere.pde", 100, height - 20);
@@ -838,26 +841,26 @@ class Vectorfield {
 }
 
 class Pariclecell {
-  IntList id;
+  IntList list;
   PVector orgin = new PVector();
 
   Pariclecell(PVector orgin) {
     this.orgin.x = orgin.x;
     this.orgin.y = orgin.y;
 
-    id = new IntList();
+    list = new IntList();
   }
 
   void reset() {
-    id.clear();
+    list.clear();
   }
 
   void display(boolean display) {
     if (display) {
-      fill(map(id.size(), 0, particles.size(), 0, 255));
+      fill(map(list.size(), 0, particles.size(), 0, 255));
       noStroke();
       rectMode(CENTER);
-      rect(orgin.x, orgin.y, prtcl_segment_d, prtcl_segment_d);
+      rect(orgin.x, orgin.y, cell_segment_d, cell_segment_d);
     }
   }
 }
@@ -873,7 +876,7 @@ class Particle {
   float lifespan, lifespan_start, lifespan_range;
   int active_vector, saturation;
 
-  int listPos;
+  int id;
   int active_cell_x, active_cell_y, active_cell;
   int active_cell_l, active_cell_r, active_cell_t, active_cell_b,
   active_cell_lt, active_cell_rt, active_cell_lb, active_cell_rb;
@@ -913,48 +916,52 @@ class Particle {
     pos.add(velocity);
   }
 
-  void getCell(int listPos) {
-    this.listPos = listPos;
+  void getCell(int id) {
+    this.id = id;
 
-    active_cell_x = int((pos.x - field_border_left) / prtcl_segment_d);
-    active_cell_y = int((pos.y - field_border_top) / prtcl_segment_d);
+    active_cell_x = int((pos.x - field_border_left) / cell_segment_d);
+    active_cell_y = int((pos.y - field_border_top) / cell_segment_d);
 
-    active_cell = active_cell_y * prtcl_segment_ny + active_cell_x; // detect active cell
+    active_cell = active_cell_y * cell_segment_ny + active_cell_x; // detect active cell
 
-    if (active_cell >= 0 && active_cell < particlecells.size()) {
-      Pariclecell prtcl = particlecells.get(active_cell);
-      prtcl.id.append(listPos);
+    if (active_cell >= 0 && active_cell < cells.size()) {
+      Pariclecell cell = cells.get(active_cell);
 
-      active_cell_l = active_cell_y * prtcl_segment_ny + (active_cell_x - 1); // define surrounding cells
-      active_cell_r = active_cell_y * prtcl_segment_ny + (active_cell_x + 1);
-      active_cell_t = (active_cell_y - 1) * prtcl_segment_ny + active_cell_x;
-      active_cell_b = (active_cell_y + 1) * prtcl_segment_ny + active_cell_x;
-      active_cell_lt = (active_cell_y - 1) * prtcl_segment_ny + (active_cell_x - 1);
-      active_cell_rt = (active_cell_y - 1) * prtcl_segment_ny + (active_cell_x + 1);
-      active_cell_lb = (active_cell_y + 1) * prtcl_segment_ny + (active_cell_x - 1);
-      active_cell_rb = (active_cell_y + 1) * prtcl_segment_ny + (active_cell_x + 1);
+      if (cell.list.size() < cell_set_max_entries) { // set max entries in cell
 
-      if (active_cell_x > 0 && active_cell_x < prtcl_segment_nx - 1 && active_cell_y > 0 && active_cell_y < prtcl_segment_ny - 1) {
-        particlecells.get(active_cell_l).id.append(listPos);
-        particlecells.get(active_cell_r).id.append(listPos);
-        particlecells.get(active_cell_t).id.append(listPos);
-        particlecells.get(active_cell_b).id.append(listPos);
-        particlecells.get(active_cell_lt).id.append(listPos);
-        particlecells.get(active_cell_rt).id.append(listPos);
-        particlecells.get(active_cell_lb).id.append(listPos);
-        particlecells.get(active_cell_rb).id.append(listPos);
+        cell.list.append(id);
+
+        active_cell_l = active_cell_y * cell_segment_ny + (active_cell_x - 1); // define surrounding cells
+        active_cell_r = active_cell_y * cell_segment_ny + (active_cell_x + 1);
+        active_cell_t = (active_cell_y - 1) * cell_segment_ny + active_cell_x;
+        active_cell_b = (active_cell_y + 1) * cell_segment_ny + active_cell_x;
+        active_cell_lt = (active_cell_y - 1) * cell_segment_ny + (active_cell_x - 1);
+        active_cell_rt = (active_cell_y - 1) * cell_segment_ny + (active_cell_x + 1);
+        active_cell_lb = (active_cell_y + 1) * cell_segment_ny + (active_cell_x - 1);
+        active_cell_rb = (active_cell_y + 1) * cell_segment_ny + (active_cell_x + 1);
+
+        if (active_cell_x > 0 && active_cell_x < cell_segment_nx - 1 && active_cell_y > 0 && active_cell_y < cell_segment_ny - 1) { // ignore outmost cells
+          cells.get(active_cell_l).list.append(id);
+          cells.get(active_cell_r).list.append(id);
+          cells.get(active_cell_t).list.append(id);
+          cells.get(active_cell_b).list.append(id);
+          cells.get(active_cell_lt).list.append(id);
+          cells.get(active_cell_rt).list.append(id);
+          cells.get(active_cell_lb).list.append(id);
+          cells.get(active_cell_rb).list.append(id);
+        }
       }
     }
   }
 
   void addInteraction(boolean set) {
     if (set) {
-      if (active_cell >= 0 && active_cell < particlecells.size()) {
+      if (active_cell >= 0 && active_cell < cells.size()) {
 
-        Pariclecell prtcl = particlecells.get(active_cell);
-        if (prtcl.id.size() > 1) {
-          for (int i = 0; i < prtcl.id.size(); i++) { // load only the relevant particles
-            Particle part = particles.get(prtcl.id.get(i));
+        Pariclecell cell = cells.get(active_cell);
+        if (cell.list.size() > 1) {
+          for (int i = 0; i < cell.list.size(); i++) { // load only the relevant particles
+            Particle part = particles.get(cell.list.get(i));
 
             force = PVector.sub(part.pos, pos);
             dist = force.mag();
