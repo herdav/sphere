@@ -5,6 +5,21 @@
 // Licensed under the MIT License
 // ----------------------------------------------------------------------
 
+
+/*  SHORT-KEYS ----------------------------------------------------------
+    [q]         : gui hide
+    [w]         : gui show
+    [s]         : save screen as pdf
+    [ARROWS]    : move center of particlesbirth
+    [.]         : move center of particlesbirth to orgin
+    [p]         : save current setting as preset
+    [u]         : update current preset
+    [0 - 3]     : load preset
+    mouse-left  : set target
+    mouse-right : clear all targets
+-----------------------------------------------------------------------*/
+
+
 import controlP5.*;
 import processing.pdf.*;
 import processing.serial.*;
@@ -90,6 +105,7 @@ boolean part_calculate = true;
 boolean part_set = true;
 float part_birth_circle_r;
 PVector paricles_birth_circle_pos = new PVector();
+PVector paricles_birth_center_pos = new PVector();
 
 // GUI & CONTROLS -------------------------------------------------------
 ControlP5 cp5;
@@ -99,8 +115,7 @@ boolean controls_show = true;
 boolean record_pdf = false;
 boolean background_display = true;
 boolean targt_display = false;
-boolean load_default, load_preset_1, load_preset_2,
-load_preset_3, load_preset_4, load_preset_5;
+boolean load_preset_0, load_preset_1, load_preset_2, load_preset_3;
 int load_preset_last = 0;
 int background_color = 0;
 int theme = 0;
@@ -110,8 +125,8 @@ int field_border_left, field_border_top, field_border_bot;
 PVector field_center = new PVector();
 
 void setup() {
-  size(1800, 1000, P2D);
-  //fullScreen(P2D);
+  //size(1800, 1000, P2D);
+  fullScreen(P2D);
   blendMode(ADD);
 
   String[] ports = Serial.list();
@@ -185,20 +200,20 @@ void serialEvent(Serial stream_port) {
 }
 
 void pointer(boolean set) {
-  if (set) {
+  if (set && controls_show) {
     pointer_x_axis.calculation(stream_data_angle_x, 1);
     pointer_x_axis.needle(true);
     pointer_x_axis.graph(false, 30);
     pointer_x_axis.magnitude();
     pointer_x_axis.path(true, color(0, 255, 0, 200));
-    pointer_x_axis.title("x-axis");
+    pointer_x_axis.title("X-AXIS");
 
     pointer_y_axis.calculation(stream_data_angle_y, 1);
     pointer_y_axis.needle(true);
     pointer_y_axis.graph(false, 30);
     pointer_y_axis.magnitude();
     pointer_y_axis.path(true, color(0, 255, 0, 200));
-    pointer_y_axis.title("y-axis");
+    pointer_y_axis.title("Y-AXIS");
 
     pointer_stp.calculation(stream_data_angle_stp, sqrt(sq(stream_data_rpm)) / 35);
     pointer_stp.needle(false);
@@ -210,7 +225,7 @@ void pointer(boolean set) {
     pointer_yaw.graph(false, 5);
     pointer_yaw.magnitude();
     pointer_yaw.path(true, color(0, 255, 0, 200));
-    pointer_yaw.title("yaw-angle");
+    pointer_yaw.title("YAW-ANGLE");
   }
 }
 
@@ -220,6 +235,7 @@ void fieldsize() {
   field_border_bot = field_border_top;
   field_center.x = field_width / 2 + field_border_left;
   field_center.y = field_height / 2 + field_border_top;
+  paricles_birth_center_pos = field_center.copy();
 }
 
 void gui() {
@@ -253,7 +269,7 @@ void gui() {
     .setBarHeight(cp5_h)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s); {
     cp5_presets.getCaptionLabel().align(CENTER, CENTER);
-    cp5.addBang("load_default").setPosition(cp5_x = 0, cp5_y = 3).setSize(40, cp5_h).setGroup(cp5_presets).setCaptionLabel("DEFAULT").getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_0").setPosition(cp5_x = 0, cp5_y = 3).setSize(40, cp5_h).setGroup(cp5_presets).setCaptionLabel("DEFAULT").getCaptionLabel().align(CENTER, CENTER);
     cp5.addBang("load_preset_1").setPosition(cp5_x += 43, cp5_y).setSize(40, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 1").getCaptionLabel().align(CENTER, CENTER);
     cp5.addBang("load_preset_2").setPosition(cp5_x += 43, cp5_y).setSize(40, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 2").getCaptionLabel().align(CENTER, CENTER);
     cp5.addBang("load_preset_3").setPosition(cp5_x += 43, cp5_y).setSize(40, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 3").getCaptionLabel().align(CENTER, CENTER);
@@ -392,6 +408,7 @@ void controlEvent(ControlEvent theControlEvent) {
 }
 
 void control() {
+  // visibility gui
   if (keyPressed && key == 'q') {
     controls_show = false;
     cp5.hide();
@@ -401,22 +418,34 @@ void control() {
     cp5.show();
   }
 
+  // visibility cursor
   if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) {
     noCursor();
-  } else {
-    cursor();
+  } else cursor();
+
+  // move center of particlesbirth
+  if (keyPressed) {
+    if (key == CODED) {
+      if (keyCode == UP) paricles_birth_center_pos.y -= 1;
+      if (keyCode == DOWN) paricles_birth_center_pos.y += 1;
+      if (keyCode == LEFT) paricles_birth_center_pos.x -= 1;
+      if (keyCode == RIGHT) paricles_birth_center_pos.x += 1;
+    }
+    if (key == '.') {
+      paricles_birth_center_pos = field_center.copy();
+    }
   }
 
+  // save and load presets
   if (keyPressed) {
     if (key == 'p') cp5.saveProperties(("\\presets\\preset.json"));
     if (key == 'u') cp5.saveProperties(("\\presets\\preset_" + str(load_preset_last) + ".json"));
   }
-
-  if (load_default) {
+  if (load_preset_0) {
     cp5.loadProperties(("\\presets\\preset_0.json"));
     load_preset_last = 0;
     println(loaded(load_preset_last));;
-    load_default = false;
+    load_preset_0 = false;
   }
   if (load_preset_1) {
     cp5.loadProperties(("\\presets\\preset_1.json"));
@@ -497,8 +526,8 @@ void particles() {
       if (part_birth_circle) {
         part_streams_circle = 4 * part_streams;
         for (int i = 0; i <= part_streams_circle; i++) {
-          paricles_birth_circle_pos.x = field_center.x + part_birth_circle_r * cos((PI * i * 2) / (part_streams_circle));
-          paricles_birth_circle_pos.y = field_center.y - part_birth_circle_r * sin((PI * i * 2) / (part_streams_circle));
+          paricles_birth_circle_pos.x = paricles_birth_center_pos.x + part_birth_circle_r * cos((PI * i * 2) / (part_streams_circle));
+          paricles_birth_circle_pos.y = paricles_birth_center_pos.y - part_birth_circle_r * sin((PI * i * 2) / (part_streams_circle));
 
           if (i >= 0 && i < part_streams_circle / 3) {
             particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, part_lifespan, color_a));
@@ -605,16 +634,17 @@ void data() {
     textSize(9);
     fill(255);
     textAlign(LEFT, BOTTOM);
-    text("FPS\n" + "VECTORS\n" + "PARTICLES\n" + "TARGETS\n" + "CELLS\n" + "INTERACTION\n\n" + "DEVICE\n\n" +
+    text("FPS\n" + "VECTORS\n" + "PARTICLES\n" + "CELLS\n" + "INTERACTION\n" + "DIST\n" + "TARGETS\n\n" + "DEVICE\n\n" +
       year() + '/' + month() + '/' + day() + "\n\n" +
       "David Herren", 20, height - 20);
 
     text(int(frameRate) + "\n" +
       vectors.size() + "\n" +
       particles.size() + "\n" +
-      targets.size() + "\n" +
       cells.size() + "\n" +
-      cell_calculationload + "%\n\n" +
+      cell_calculationload + "%\n" +
+      'P' + int(part_interaction_d_max) + " " + 'C' + int(cell_segment_d) + "\n" +
+      targets.size() + "\n\n" +
       stream_port_name + "\n\n" +
       hour() + ':' + minute() + ':' + second() + "\n\nsphere.pde", 100, height - 20);
   }
@@ -701,7 +731,7 @@ class Pointer {
       if (graph_count == d - 1) graph_count = 0;
       graph_store[graph_count] = f * a;
       stroke(gray);
-      for (int i = 0; i < graph_store.length; i++) line(orgin.x - r + i, orgin.y + r + r / 1.5, orgin.x - r + i, orgin.y + r + r / 1.5 - graph_store[i]);
+      for (int i = 0; i < graph_store.length; i++) line(orgin.x - r + i, orgin.y + d / 1.5, orgin.x - r + i, orgin.y + d / 1.5 - graph_store[i]);
     }
   }
 
@@ -1034,9 +1064,7 @@ class Particle {
   }
 
   void clear(boolean set) {
-    if (set) {
-      lifespan = 0;
-    }
+    if (set) lifespan = 0;
   }
 
   void colorize(boolean set) {
@@ -1045,9 +1073,7 @@ class Particle {
 
       if (lifespan_range < part_saturation_min || lifespan_range > part_saturation_max) {
         saturation = part_saturation_min_limit;
-      } else {
-        saturation = int(map(lifespan_range, part_saturation_min, part_saturation_max, part_saturation_min_limit, part_saturation_max_limit));
-      }
+      } else saturation = int(map(lifespan_range, part_saturation_min, part_saturation_max, part_saturation_min_limit, part_saturation_max_limit));
 
       a = saturation;
       r = (argb >> 16) & 0xFF;
