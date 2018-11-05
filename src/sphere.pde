@@ -1,24 +1,24 @@
-// SPHERE
-// Created 2018 by David Herren
-// https://davidherren.ch
-// https://github.com/herdav/sphere
-// Licensed under the MIT License
-// ----------------------------------------------------------------------
-
+/*  SPHERE --------------------------------------------------------------
+    Created 2018 by David Herren.                                       /
+    https://davidherren.ch                                              /
+    https://github.com/herdav/sphere                                    /
+    Licensed under the MIT License.                                     /
+    ---------------------------------------------------------------------
+*/
 
 /*  SHORT-KEYS ----------------------------------------------------------
-    [q]         : gui hide
-    [w]         : gui show
-    [s]         : save screen as pdf
-    [ARROWS]    : move center of particlesbirth
-    [.]         : move center of particlesbirth to orgin
-    [p]         : save current setting as preset
-    [u]         : update current preset
-    [0 - 3]     : load preset
-    mouse-left  : set target
-    mouse-right : clear all targets
------------------------------------------------------------------------*/
-
+    [q] .......... gui hide                                             /
+    [w] .......... gui show                                             /
+    [s] .......... save screen as pdf                                   /
+    [ARROWS] ..... move center of particlesbirth                        /
+    [.] .......... move center of particlesbirth to orgin               /
+    [p] .......... save current setting as preset                       /
+    [u] .......... update current preset                                /
+    [0 - 3] ...... load preset                                          /
+    mouse-left ... set target                                           /
+    mouse-right .. clear all targets                                    /
+    ---------------------------------------------------------------------
+*/
 
 import controlP5.*;
 import processing.pdf.*;
@@ -100,6 +100,7 @@ boolean part_pull = false;
 boolean part_interaction = false;
 boolean part_set_extinction = false;
 boolean part_set_interaction = false;
+boolean part_set_interaction_distancerelated = true;
 boolean part_birth_circle = true;
 boolean part_calculate = true;
 boolean part_set = true;
@@ -125,8 +126,8 @@ int field_border_left, field_border_top, field_border_bot;
 PVector field_center = new PVector();
 
 void setup() {
-  //size(1800, 1000, P2D);
-  fullScreen(P2D);
+  size(1800, 1000, P2D);
+  //fullScreen(P2D);
   blendMode(ADD);
 
   String[] ports = Serial.list();
@@ -142,11 +143,11 @@ void setup() {
   fieldsize();
 
   pointer_rstr.x = 600;
-  pointer_rstr.y = 200;
-  pointer_x_axis = new Pointer(pointer_rstr.x, pointer_rstr.y, 200);
-  pointer_y_axis = new Pointer(pointer_rstr.x, height / 2, 200);
-  pointer_yaw = new Pointer(pointer_rstr.x, height - pointer_rstr.y, 200);
-  pointer_stp = new Pointer(pointer_rstr.x, height - pointer_rstr.y, 200);
+  pointer_rstr.y = 180;
+  pointer_x_axis = new Pointer(pointer_rstr.x, 120, pointer_rstr.y);
+  pointer_y_axis = new Pointer(pointer_rstr.x, 360, pointer_rstr.y);
+  pointer_yaw = new Pointer(pointer_rstr.x, 600, pointer_rstr.y);
+  pointer_stp = new Pointer(pointer_rstr.x, 600, pointer_rstr.y);
 
   pointer_targets = new Pointer(field_center.x, field_center.y, field_height / 1.5);
   vectors = new ArrayList < Vectorfield > ();
@@ -269,10 +270,10 @@ void gui() {
     .setBarHeight(cp5_h)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s); {
     cp5_presets.getCaptionLabel().align(CENTER, CENTER);
-    cp5.addBang("load_preset_0").setPosition(cp5_x = 0, cp5_y = 3).setSize(40, cp5_h).setGroup(cp5_presets).setCaptionLabel("DEFAULT").getCaptionLabel().align(CENTER, CENTER);
-    cp5.addBang("load_preset_1").setPosition(cp5_x += 43, cp5_y).setSize(40, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 1").getCaptionLabel().align(CENTER, CENTER);
-    cp5.addBang("load_preset_2").setPosition(cp5_x += 43, cp5_y).setSize(40, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 2").getCaptionLabel().align(CENTER, CENTER);
-    cp5.addBang("load_preset_3").setPosition(cp5_x += 43, cp5_y).setSize(40, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 3").getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_0").setPosition(cp5_x = 0, cp5_y = 3).setSize(78, cp5_h).setGroup(cp5_presets).setCaptionLabel("DEFAULT").getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_1").setPosition(cp5_x += 81, cp5_y).setSize(78, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 1").getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_2").setPosition(cp5_x += 81, cp5_y).setSize(78, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 2").getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_3").setPosition(cp5_x += 81, cp5_y).setSize(77, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 3").getCaptionLabel().align(CENTER, CENTER);
   }
 
   cp5_n = 3;
@@ -327,7 +328,7 @@ void gui() {
       .setValue(field_height / 2 - vctr_segment_d);
   }
 
-  cp5_n = 7;
+  cp5_n = 8;
   Group cp5_part_interaction = cp5.addGroup("PARTICLES INTERACTION")
     .setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
@@ -349,6 +350,7 @@ void gui() {
       .setBroadcast(true);
     cp5.addToggle("part_set_interaction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_interaction_force", -1, 1, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
+    cp5.addToggle("part_set_interaction_distancerelated").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addToggle("part_set_extinction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h * 2 + 4).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_extinction_d", 0, 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
     cp5.addSlider("part_extinction_l", 0, 2, 43, cp5_y += cp5_hs, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
@@ -634,8 +636,8 @@ void data() {
     textSize(9);
     fill(255);
     textAlign(LEFT, BOTTOM);
-    text("FPS\n" + "VECTORS\n" + "PARTICLES\n" + "CELLS\n" + "INTERACTION\n" + "DIST\n" + "TARGETS\n\n" + "DEVICE\n\n" +
-      year() + '/' + month() + '/' + day() + "\n\n" +
+    text("FPS\n" + "VECTORS\n" + "PARTICLES\n" + "CELLS\n" + "INTERACTION\n" + "DIST\n" + "TARGETS\n" +
+      "PRESET\n" + "DEVICE\n\n" + year() + '/' + month() + '/' + day() + "\n\n" +
       "David Herren", 20, height - 20);
 
     text(int(frameRate) + "\n" +
@@ -643,8 +645,9 @@ void data() {
       particles.size() + "\n" +
       cells.size() + "\n" +
       cell_calculationload + "%\n" +
-      'P' + int(part_interaction_d_max) + " " + 'C' + int(cell_segment_d) + "\n" +
-      targets.size() + "\n\n" +
+      "P" + int(part_interaction_d_max) + " / C" + int(cell_segment_d) + "\n" +
+      targets.size() + "\n" +
+      load_preset_last + " is loaded\n" +
       stream_port_name + "\n\n" +
       hour() + ':' + minute() + ':' + second() + "\n\nsphere.pde", 100, height - 20);
   }
@@ -739,7 +742,7 @@ class Pointer {
     textSize(9);
     fill(255);
     textAlign(CENTER, CENTER);
-    text(t + ": " + float(int(10 * a * 180 / PI)) / 10 + '°', orgin.x, orgin.y - r - r / 5);
+    text(t + ": " + float(int(10 * a * 180 / PI)) / 10 + '°', orgin.x, orgin.y + r + r / 5);
   }
 }
 
@@ -890,10 +893,10 @@ class Particle {
   PVector pos = new PVector();
   PVector velocity = new PVector();
   PVector force = new PVector();
+  PVector dist = new PVector();
   PVector pull = new PVector();
   PVector repul = new PVector();
 
-  double dist;
   float lifespan, lifespan_start, lifespan_range;
   int active_vector, saturation;
 
@@ -995,21 +998,21 @@ class Particle {
         if (active_cell >= 0 && active_cell < cells.size()) {
           Pariclecell cell = cells.get(active_cell);
 
-          if (cell.list.size() > 1) {
+          if (cell.list.size() > 0) {
             for (int i = 0; i < cell.list.size(); i++) {
               Particle part = particles.get(cell.list.get(i));
 
-              force = PVector.sub(part.pos, pos);
-              dist = force.mag();
+              dist = PVector.sub(part.pos, pos);
+              float d = dist.mag();
+              float s = d / (part_interaction_d_max - part_interaction_d_min); // if d = d_max -> s = 1, else s < 1
+              float f = 1 / pow(s, 0.5);
+              if (!part_set_interaction_distancerelated) f = 1;
 
-              if (dist < part_extinction_d && part_set_extinction) {
-                lifespan -= part_extinction_l;
-              }
-
-              if (dist < part_interaction_d_max && dist > part_interaction_d_min) {
+              if (d < part_interaction_d_max && d > part_interaction_d_min) {
                 if (part_set_interaction) {
-                  force.setMag(part_interaction_force);
+                  force = dist.setMag(part_interaction_force * f);
                   velocity.add(force);
+
                   part.connected = true;
                   connected = false;
                 }
@@ -1019,6 +1022,10 @@ class Particle {
                   line(pos.x, pos.y, part.pos.x, part.pos.y);
                 }
               }
+
+              if (d < part_extinction_d && part_set_extinction) {
+                lifespan -= part_extinction_l;
+              }
             }
           }
         }
@@ -1027,16 +1034,16 @@ class Particle {
         for (int i = particles.size() - 1; i > 0; i--) {
           Particle part = particles.get(i);
 
-          force = PVector.sub(part.pos, pos);
-          dist = force.mag();
+          dist = PVector.sub(part.pos, pos);
+          float d = dist.mag();
 
-          if (dist < part_extinction_d && part_set_extinction) {
+          if (d < part_extinction_d && part_set_extinction) {
             lifespan -= part_extinction_l;
           }
 
-          if (dist < part_interaction_d_max && dist > part_interaction_d_min) {
+          if (d < part_interaction_d_max && d > part_interaction_d_min) {
             if (part_set_interaction) {
-              force.setMag(part_interaction_force);
+              force = dist.setMag(part_interaction_force);
               velocity.add(force);
               part.connected = true;
               connected = false;
