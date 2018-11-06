@@ -12,6 +12,7 @@
     [s] .......... save screen as pdf                                   /
     [ARROWS] ..... move center of particlesbirth                        /
     [.] .......... move center of particlesbirth to orgin               /
+    [z] .......... reverse polarity of the current target               /
     [p] .......... save current setting as preset                       /
     [u] .......... update current preset                                /
     [0 - 3] ...... load preset                                          /
@@ -50,6 +51,7 @@ ArrayList < Target > targets;
 boolean targt_removed = false;
 boolean targt_pointer = false;
 boolean targt_mouse = true;
+boolean targt_set_polarisation = true;
 
 // VECTORFIELD ----------------------------------------------------------
 Vectorfield vctr;
@@ -94,6 +96,7 @@ float part_extinction_d = 1;
 float part_extinction_l = 1;
 float part_speed = 8;
 float part_lx, part_ly;
+float part_sinteraction_distancerelated_p = 0.5;
 boolean part_clear = false;
 boolean part_noise = false;
 boolean part_pull = false;
@@ -154,7 +157,7 @@ void setup() {
   cells = new ArrayList < Pariclecell > ();
   particles = new ArrayList < Particle > ();
   targets = new ArrayList < Target > ();
-  targets.add(new Target(field_center.x, field_center.y));
+  targets.add(new Target(field_center.x, field_center.y, targt_set_polarisation));
 
   gui();
 }
@@ -351,6 +354,7 @@ void gui() {
     cp5.addToggle("part_set_interaction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_interaction_force", -1, 1, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
     cp5.addToggle("part_set_interaction_distancerelated").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("part_sinteraction_distancerelated_p", 0, 10, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
     cp5.addToggle("part_set_extinction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h * 2 + 4).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_extinction_d", 0, 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
     cp5.addSlider("part_extinction_l", 0, 2, 43, cp5_y += cp5_hs, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
@@ -420,6 +424,11 @@ void control() {
     cp5.show();
   }
 
+  // --
+  if (keyPressed && key == 'z') {
+    targt_set_polarisation = false;
+  } else targt_set_polarisation = true;
+
   // visibility cursor
   if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) {
     noCursor();
@@ -477,7 +486,7 @@ String loaded(int i) {
 void mouseClicked() {
   if (targt_mouse) {
     if (mouseButton == LEFT && mouseX > field_border_left) {
-      targets.add(new Target(mouseX, mouseY));
+      targets.add(new Target(mouseX, mouseY, targt_set_polarisation));
     }
     if (mouseButton == RIGHT && targets.size() > 1 && mouseX > field_border_left) {
       for (int i = targets.size() - 1; i > 0; i--) targets.remove(i);
@@ -493,8 +502,12 @@ void targets() {
     if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) {
       if (targt_removed) {
         targets.get(0).update(mouseX, mouseY);
+        targets.get(0).polarisation(targt_set_polarisation);
         targt_removed = false;
-      } else targets.get(0).update(mouseX, mouseY);
+      } else {
+        targets.get(0).update(mouseX, mouseY);
+        targets.get(0).polarisation(targt_set_polarisation);
+      }
     }
 
     if (mouseX < field_border_left || mouseY < field_border_top || mouseY > height - field_border_bot) {
@@ -514,7 +527,6 @@ void targets() {
   }
 
   for (Target targets: targets) {
-    targets.update();
     targets.display(targt_display);
   }
 }
@@ -621,9 +633,8 @@ void field() {
 
   for (int i = 0; i < vctr_segment_n; i++) {
     Vectorfield vctr = vectors.get(i);
-
     for (int j = targets.size() - 1; j >= 0; j--) {
-      vctr.target(targets.get(j).pos);
+      vctr.target(targets.get(j).pos, targets.get(j).pol);
       vctr.magnitude(vctr_segment_delay);
     }
     vctr.colorize(theme);
@@ -748,10 +759,13 @@ class Pointer {
 
 class Target {
   PVector pos = new PVector();
+  boolean pol;
 
-  Target(float x, float y) {
+  Target(float x, float y, boolean pol) {
     pos.x = x;
     pos.y = y;
+
+    this.pol = pol;
   }
 
   void update(float x, float y) {
@@ -759,12 +773,15 @@ class Target {
     pos.y = y;
   }
 
-  void update() {}
+  void polarisation(boolean pol) {
+    this.pol = pol;
+  }
 
   void display(boolean set) {
     if (set) {
-      noFill();
-      stroke(255, 200);
+      if (pol) fill(255, 0, 0);
+      else fill(0, 0, 255);
+      stroke(255);
       strokeWeight(2);
       ellipse(pos.x, pos.y, 15, 15);
     }
@@ -780,7 +797,6 @@ class Vectorfield {
   PVector force = new PVector();
 
   color darkgray = color(90);
-
   float magnitude, dist;
 
   Vectorfield(PVector orgin) {
@@ -788,18 +804,19 @@ class Vectorfield {
     this.orgin.y = orgin.y;
   }
 
-  void target(PVector target) {
+  void target(PVector target, boolean polarisation) {
     dist = orgin.dist(target);
     dist = vctr_segment_r - vctr_segment_r * dist / vctr_maxDist;
     direct = PVector.sub(target, orgin);
     direct.setMag(dist);
+    if (!polarisation) direct.mult(-1);
     direct.add(orgin);
   }
 
-  void magnitude(float velocity) {
+  void magnitude(float delay) {
     offset = PVector.sub(direct, result);
     magnitude = offset.mag();
-    offset.mult(velocity);
+    offset.mult(delay);
     result.add(offset);
     force = PVector.sub(result, orgin);
   }
@@ -1004,8 +1021,8 @@ class Particle {
 
               dist = PVector.sub(part.pos, pos);
               float d = dist.mag();
-              float s = d / (part_interaction_d_max - part_interaction_d_min); // if d = d_max -> s = 1, else s < 1
-              float f = 1 / pow(s, 0.5);
+              float s = d / (part_interaction_d_max);
+              float f = 1 / pow(s, part_sinteraction_distancerelated_p);
               if (!part_set_interaction_distancerelated) f = 1;
 
               if (d < part_interaction_d_max && d > part_interaction_d_min) {
