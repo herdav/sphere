@@ -12,12 +12,12 @@
     [s] .......... save screen as pdf                                   /
     [ARROWS] ..... move center of particlesbirth                        /
     [.] .......... move center of particlesbirth to orgin               /
-    [z] .......... reverse polarity of the current target               /
     [p] .......... save current setting as preset                       /
     [u] .......... update current preset                                /
     [0 - 3] ...... load preset                                          /
     mouse-left ... set target                                           /
     mouse-right .. clear all targets                                    /
+    [z] .......... reverse polarity of the current target               /
     ---------------------------------------------------------------------
 */
 
@@ -60,7 +60,7 @@ PVector vctr_segment_pos = new PVector();
 float vctr_segment_d, vctr_segment_r, vctr_maxDist;
 float vctr_segment_delay = 0.03;
 int vctr_segment_nx = 50, vctr_segment_ny;
-int vctr_segment_n, vctr_segment_n_max = 300;
+int vctr_segment_n, vctr_segment_n_max = 200;
 
 // PARTICLE CELLS ------------------------------------------------------
 Pariclecell cell;
@@ -73,13 +73,10 @@ int cell_set_max_entries = 100;
 int cell_calculationload_max, cell_calculationload_eff;
 float cell_calculationload;
 boolean cell_segment_display = false;
-boolean cell_set_filter = true;
 
 // PARTICLES ------------------------------------------------------------
 Particle part;
 ArrayList < Particle > particles;
-int part_count_birthrate;
-int part_birthrate = 1;
 int part_size = 1;
 int part_streams = 10;
 int part_streams_circle;
@@ -89,25 +86,22 @@ int part_saturation_min_limit = 0;
 int part_saturation_max_limit = 255;
 float part_lifespan = 40;
 float part_lifespan_max = 200;
-float part_interaction_d_min = 5;
+float part_interaction_d_min = 0;
 float part_interaction_d_max = 30;
 float part_interaction_force = 0;
 float part_extinction_d = 1;
 float part_extinction_l = 1;
 float part_speed = 8;
 float part_lx, part_ly;
-float part_sinteraction_distancerelated_p = 0.5;
+float part_birth_circle_r;
 boolean part_clear = false;
 boolean part_noise = false;
 boolean part_pull = false;
 boolean part_interaction = false;
 boolean part_set_extinction = false;
 boolean part_set_interaction = false;
-boolean part_set_interaction_distancerelated = true;
 boolean part_birth_circle = true;
-boolean part_calculate = true;
 boolean part_set = true;
-float part_birth_circle_r;
 PVector paricles_birth_circle_pos = new PVector();
 PVector paricles_birth_center_pos = new PVector();
 
@@ -129,8 +123,8 @@ int field_border_left, field_border_top, field_border_bot;
 PVector field_center = new PVector();
 
 void setup() {
-  size(1800, 1000, P2D);
-  //fullScreen(P2D);
+  //size(1800, 1000, P2D);
+  fullScreen(P2D);
   blendMode(ADD);
 
   String[] ports = Serial.list();
@@ -260,11 +254,12 @@ void gui() {
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
     .setBarHeight(cp5_h); {
     cp5_system.getCaptionLabel().align(CENTER, CENTER);
+
     cp5.addToggle("pointer_control").setPosition(0, cp5_y = 3).setSize(110, cp5_h).setGroup(cp5_system).setCaptionLabel("DEVICE CONTROL DISPLAY").getCaptionLabel().align(CENTER, CENTER);
     cp5.addToggle("targt_pointer").setPosition(0, cp5_y += cp5_hs).setSize(110, cp5_h).setGroup(cp5_system).setCaptionLabel("SET DEVICE AS TARGET").getCaptionLabel().align(CENTER, CENTER);
     cp5.addToggle("stream_data_serial_print").setPosition(0, cp5_y += cp5_hs).setSize(110, cp5_h).setCaptionLabel("SERIAL PRINT DEVICE DATA").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
     cp5.addToggle("targt_display").setPosition(cp5_w - 113, cp5_y = 3).setSize(110, cp5_h).setValue(true).setCaptionLabel("TARGETS DISPLAY").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("part_calculate").setPosition(cp5_w - 113, cp5_y += cp5_hs).setSize(110, cp5_h).setCaptionLabel("PARTICLES CALCULATE").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("part_clear").setPosition(cp5_w - 113, cp5_y += cp5_hs).setSize(110, cp5_h).setCaptionLabel("PARTICLES CLEAR").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
   }
 
   cp5_n = 1;
@@ -273,6 +268,7 @@ void gui() {
     .setBarHeight(cp5_h)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s); {
     cp5_presets.getCaptionLabel().align(CENTER, CENTER);
+
     cp5.addBang("load_preset_0").setPosition(cp5_x = 0, cp5_y = 3).setSize(78, cp5_h).setGroup(cp5_presets).setCaptionLabel("DEFAULT").getCaptionLabel().align(CENTER, CENTER);
     cp5.addBang("load_preset_1").setPosition(cp5_x += 81, cp5_y).setSize(78, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 1").getCaptionLabel().align(CENTER, CENTER);
     cp5.addBang("load_preset_2").setPosition(cp5_x += 81, cp5_y).setSize(78, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 2").getCaptionLabel().align(CENTER, CENTER);
@@ -284,6 +280,7 @@ void gui() {
     .setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
     .setBarHeight(cp5_h); {
+
     cp5.addButtonBar("theme")
       .setGroup(cp5_vectorfield)
       .setPosition(0, cp5_y = 3)
@@ -294,7 +291,9 @@ void gui() {
           ButtonBar theme = (ButtonBar) ev.getController();
         }
       });
+
     cp5_vectorfield.getCaptionLabel().align(CENTER, CENTER);
+
     cp5.addSlider("vctr_segment_nx", 5, vctr_segment_n_max, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
     cp5.addSlider("vctr_segment_delay", 0.01, 0.2, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
   }
@@ -305,11 +304,17 @@ void gui() {
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
     .setBarHeight(cp5_h); {
     cp5_particles.getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_streams", 1, 200, 0, cp5_y = 3, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
-    cp5.addSlider("part_lifespan", 1, part_lifespan_max, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
-    cp5.addSlider("part_speed", -2, 40, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
+
+    cp5.addToggle("part_birth_circle").setPosition(0, cp5_y = 3).setSize(40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("part_birth_circle_r", 1, field_height / 2 - 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles).setValue(field_height * 0.45);
+
     cp5.addToggle("part_set").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_size", 1, 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
+
+    cp5.addSlider("part_streams", 1, 200, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
+    cp5.addSlider("part_lifespan", 1, part_lifespan_max, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
+    cp5.addSlider("part_speed", -2, 40, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
+
     cp5.addRange("part_saturation_scope").setGroup(cp5_particles)
       .setBroadcast(false)
       .setPosition(0, cp5_y += cp5_hs)
@@ -318,6 +323,7 @@ void gui() {
       .setRange(0, 255)
       .setRangeValues(part_saturation_min, part_saturation_max)
       .setBroadcast(true);
+
     cp5.addRange("part_saturation_limit").setGroup(cp5_particles)
       .setBroadcast(false)
       .setPosition(0, cp5_y += cp5_hs)
@@ -326,22 +332,21 @@ void gui() {
       .setRange(0, 255)
       .setRangeValues(part_saturation_min, part_saturation_max)
       .setBroadcast(true);
-    cp5.addToggle("part_birth_circle").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_birth_circle_r", 1, field_height / 2 - 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles)
-      .setValue(field_height / 2 - vctr_segment_d);
   }
 
-  cp5_n = 8;
+  cp5_n = 6;
   Group cp5_part_interaction = cp5.addGroup("PARTICLES INTERACTION")
     .setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
     .setBarHeight(cp5_h); {
     cp5_part_interaction.getCaptionLabel().align(CENTER, CENTER);
     cp5_vectorfield.getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("cell_set_filter").setPosition(0, cp5_y = 3).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("cell_segment_nx", 8, cell_segment_n_max, 43, cp5_y = 3, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
+
+    cp5.addSlider("cell_segment_nx", 8, cell_segment_n_max, 0, cp5_y = 3, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
+
     cp5.addToggle("cell_segment_display").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SHOW").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("cell_set_max_entries", 2, 200, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
+
     cp5.addToggle("part_interaction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("ADD").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addRange("part_interaction_range").setGroup(cp5_part_interaction)
       .setBroadcast(false)
@@ -351,24 +356,13 @@ void gui() {
       .setRange(0, 100)
       .setRangeValues(part_interaction_d_min, part_interaction_d_max)
       .setBroadcast(true);
+
     cp5.addToggle("part_set_interaction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_interaction_force", -1, 1, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
-    cp5.addToggle("part_set_interaction_distancerelated").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_sinteraction_distancerelated_p", 0, 10, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
+
     cp5.addToggle("part_set_extinction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h * 2 + 4).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_extinction_d", 0, 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
     cp5.addSlider("part_extinction_l", 0, 2, 43, cp5_y += cp5_hs, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
-  }
-
-  cp5_n = 1;
-  Group cp5_effects = cp5.addGroup("PARTICLES EFFECTS")
-    .setBackgroundColor(50)
-    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
-    .setBarHeight(cp5_h); {
-    cp5_effects.getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("part_clear").setPosition(0, cp5_y = 3).setSize(40, cp5_h).setCaptionLabel("CLEAR").setGroup(cp5_effects).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("part_pull").setPosition(43, cp5_y).setSize(40, cp5_h).setCaptionLabel("PULL").setGroup(cp5_effects).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("part_noise").setPosition(86, cp5_y).setSize(40, cp5_h).setCaptionLabel("NOISE").setGroup(cp5_effects).getCaptionLabel().align(CENTER, CENTER);
   }
 
   Group cp5_color = cp5.addGroup("PARTICLES COLOR")
@@ -376,9 +370,11 @@ void gui() {
     .setBarHeight(cp5_h)
     .setBackgroundHeight(147); {
     cp5_color.getCaptionLabel().align(CENTER, CENTER);
+
     cp5.addColorWheel("color_a", 0, 10, 100).setRGB(color(255, 0, 0)).setCaptionLabel("LEFT").setGroup(cp5_color);
     cp5.addColorWheel("color_b", 110, 10, 100).setRGB(color(0, 255, 0)).setCaptionLabel("RIGHT").setGroup(cp5_color);
     cp5.addColorWheel("color_c", 220, 10, 100).setRGB(color(0, 0, 255)).setCaptionLabel("TOP").setGroup(cp5_color);
+
     cp5.addToggle("background_display").setPosition(0, 130).setSize(40, cp5_h).setCaptionLabel("set").setGroup(cp5_color).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("background_color", 0, 255, 43, 130, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_color);
   }
@@ -393,7 +389,6 @@ void gui() {
     .addItem(cp5_vectorfield)
     .addItem(cp5_particles)
     .addItem(cp5_part_interaction)
-    .addItem(cp5_effects)
     .addItem(cp5_color)
     .open();
 }
@@ -424,7 +419,7 @@ void control() {
     cp5.show();
   }
 
-  // --
+  // reverse polarity of the current target 
   if (keyPressed && key == 'z') {
     targt_set_polarisation = false;
   } else targt_set_polarisation = true;
@@ -532,50 +527,43 @@ void targets() {
 }
 
 void particles() {
-  if (part_calculate) {
-    part_count_birthrate++;
-    if (part_count_birthrate == part_birthrate) {
-      part_count_birthrate = 0;
+  if (part_birth_circle) {
+    part_streams_circle = 4 * part_streams;
+    for (int i = 0; i <= part_streams_circle; i++) {
+      paricles_birth_circle_pos.x = paricles_birth_center_pos.x + part_birth_circle_r * cos((PI * i * 2) / (part_streams_circle));
+      paricles_birth_circle_pos.y = paricles_birth_center_pos.y - part_birth_circle_r * sin((PI * i * 2) / (part_streams_circle));
 
-      if (part_birth_circle) {
-        part_streams_circle = 4 * part_streams;
-        for (int i = 0; i <= part_streams_circle; i++) {
-          paricles_birth_circle_pos.x = paricles_birth_center_pos.x + part_birth_circle_r * cos((PI * i * 2) / (part_streams_circle));
-          paricles_birth_circle_pos.y = paricles_birth_center_pos.y - part_birth_circle_r * sin((PI * i * 2) / (part_streams_circle));
-
-          if (i >= 0 && i < part_streams_circle / 3) {
-            particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, part_lifespan, color_a));
-          }
-          if (i >= part_streams_circle / 3 && i < part_streams_circle / 3 * 2) {
-            particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, part_lifespan, color_b));
-          }
-          if (i >= part_streams_circle / 3 * 2 && i < part_streams_circle) {
-            particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, part_lifespan, color_c));
-          }
-        }
+      if (i >= 0 && i < part_streams_circle / 3) {
+        particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, part_lifespan, color_a));
+      }
+      if (i >= part_streams_circle / 3 && i < part_streams_circle / 3 * 2) {
+        particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, part_lifespan, color_b));
+      }
+      if (i >= part_streams_circle / 3 * 2 && i < part_streams_circle) {
+        particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, part_lifespan, color_c));
       }
     }
+  }
 
-    for (int i = 0; i < particles.size(); i++) {
-      Particle part = particles.get(i);
-      part.clear(part_clear);
-      part.lifespan();
-      part.getVector();
-      part.getCell(i);
-      part.addPull(part_pull);
-      part.addNoise(part_noise);
-      part.addInteraction(part_interaction);
-      part.colorize(true);
-      part.display(part_set);
-    }
+  for (int i = 0; i < particles.size(); i++) {
+    Particle part = particles.get(i);
+    part.clear(part_clear);
+    part.lifespan();
+    part.getVector();
+    part.getCell(i);
+    part.addPull(part_pull);
+    part.addNoise(part_noise);
+    part.addInteraction(part_interaction);
+    part.colorize(true);
+    part.display(part_set);
+  }
 
-    cell_calculationload_max = int(sq(particles.size()));
-    cell_calculationload = float(int(1000 * float(cell_calculationload_eff) / float(cell_calculationload_max))) / 10;
+  cell_calculationload_max = int(sq(particles.size()));
+  cell_calculationload = float(int(1000 * float(cell_calculationload_eff) / float(cell_calculationload_max))) / 10;
 
-    for (int i = particles.size() - 1; i >= 0; i--) {
-      Particle part = particles.get(i);
-      if (part.lifespan <= 0) particles.remove(i);
-    }
+  for (int i = particles.size() - 1; i >= 0; i--) {
+    Particle part = particles.get(i);
+    if (part.lifespan <= 0) particles.remove(i);
   }
 }
 
@@ -587,9 +575,14 @@ void cells() {
     for (int i = particles.size() - 1; i >= 0; i--) particles.remove(i);
     for (int i = cells.size() - 1; i >= 0; i--) cells.remove(i);
 
-    if (field_height % cell_segment_ny > 0) cell_segment_nx++;
+    if (field_height % cell_segment_ny > 0) {
+      cell_segment_nx++;
+      cp5.getController("cell_segment_nx").setValue(cell_segment_nx);
+    }
+
     cell_segment_d = field_height / cell_segment_nx;
     cell_segment_r = cell_segment_d / 2;
+
     for (int i = 0; i < cell_segment_ny; i++) {
       for (int j = 0; j < cell_segment_nx; j++) {
         cell_segment_pos.x = field_border_left + j * cell_segment_d + cell_segment_r;
@@ -618,10 +611,15 @@ void field() {
     for (int i = particles.size() - 1; i >= 0; i--) particles.remove(i);
     for (int i = vectors.size() - 1; i >= 0; i--) vectors.remove(i);
 
-    if (field_height % vctr_segment_ny > 0) vctr_segment_nx++;
+    if (field_height % vctr_segment_ny > 0) {
+      vctr_segment_nx++;
+      cp5.getController("vctr_segment_nx").setValue(vctr_segment_nx);
+    }
+
     vctr_segment_d = field_height / vctr_segment_nx;
     vctr_segment_r = vctr_segment_d / 2;
     vctr_maxDist = sqrt(2 * sq((vctr_segment_nx - 1) * vctr_segment_d));
+
     for (int i = 0; i < vctr_segment_ny; i++) {
       for (int j = 0; j < vctr_segment_nx; j++) {
         vctr_segment_pos.x = field_border_left + j * vctr_segment_d + vctr_segment_r;
@@ -779,9 +777,9 @@ class Target {
 
   void display(boolean set) {
     if (set) {
-      if (pol) fill(255, 0, 0);
-      else fill(0, 0, 255);
-      stroke(255);
+      noFill();
+      if (pol) stroke(255, 0, 0);
+      else stroke(0, 0, 255);
       strokeWeight(2);
       ellipse(pos.x, pos.y, 15, 15);
     }
@@ -796,7 +794,7 @@ class Vectorfield {
   PVector result = new PVector();
   PVector force = new PVector();
 
-  color darkgray = color(90);
+  color c = color(90);
   float magnitude, dist;
 
   Vectorfield(PVector orgin) {
@@ -823,7 +821,7 @@ class Vectorfield {
 
   void grid(boolean ellipse, boolean rect) {
     noFill();
-    stroke(darkgray);
+    stroke(c);
     strokeWeight(1);
     if (ellipse) ellipse(orgin.x, orgin.y, vctr_segment_d, vctr_segment_d);
     rectMode(CENTER);
@@ -838,7 +836,7 @@ class Vectorfield {
     switch (input) {
       case 1: // vector field
         noFill();
-        stroke(darkgray);
+        stroke(c);
         line(orgin.x, orgin.y, direct.x, direct.y);
         line(direct.x, direct.y, result.x, result.y);
         stroke(255);
@@ -917,8 +915,7 @@ class Particle {
   float lifespan, lifespan_start, lifespan_range;
   int active_vector, saturation;
 
-  int id;
-  int active_cell_x, active_cell_y, active_cell;
+  int id, active_cell_x, active_cell_y, active_cell;
   int active_cell_l, active_cell_r, active_cell_t, active_cell_b,
   active_cell_lt, active_cell_rt, active_cell_lb, active_cell_rb;
 
@@ -1011,64 +1008,32 @@ class Particle {
 
   void addInteraction(boolean set) {
     if (set) {
-      if (cell_set_filter) { // compare only the particles in cells
-        if (active_cell >= 0 && active_cell < cells.size()) {
-          Pariclecell cell = cells.get(active_cell);
+      if (active_cell >= 0 && active_cell < cells.size()) {
+        Pariclecell cell = cells.get(active_cell); // compare only the particles in cells
 
-          if (cell.list.size() > 0) {
-            for (int i = 0; i < cell.list.size(); i++) {
-              Particle part = particles.get(cell.list.get(i));
+        if (cell.list.size() > 0) {
+          for (int i = 0; i < cell.list.size(); i++) {
+            Particle part = particles.get(cell.list.get(i));
+            dist = PVector.sub(part.pos, pos);
+            float d = dist.mag();
 
-              dist = PVector.sub(part.pos, pos);
-              float d = dist.mag();
-              float s = d / (part_interaction_d_max);
-              float f = 1 / pow(s, part_sinteraction_distancerelated_p);
-              if (!part_set_interaction_distancerelated) f = 1;
+            if (d < part_interaction_d_max && d > part_interaction_d_min) {
+              if (part_set_interaction) {
+                force = dist.setMag(part_interaction_force);
+                velocity.add(force);
 
-              if (d < part_interaction_d_max && d > part_interaction_d_min) {
-                if (part_set_interaction) {
-                  force = dist.setMag(part_interaction_force * f);
-                  velocity.add(force);
-
-                  part.connected = true;
-                  connected = false;
-                }
-                if (!connected) {
-                  strokeWeight(1);
-                  stroke(r, g, b, a);
-                  line(pos.x, pos.y, part.pos.x, part.pos.y);
-                }
+                part.connected = true;
+                connected = false;
               }
-
-              if (d < part_extinction_d && part_set_extinction) {
-                lifespan -= part_extinction_l;
+              if (!connected) {
+                strokeWeight(1);
+                stroke(r, g, b, a);
+                line(pos.x, pos.y, part.pos.x, part.pos.y);
               }
             }
-          }
-        }
-      }
-      if (!cell_set_filter) { // compare all particles
-        for (int i = particles.size() - 1; i > 0; i--) {
-          Particle part = particles.get(i);
 
-          dist = PVector.sub(part.pos, pos);
-          float d = dist.mag();
-
-          if (d < part_extinction_d && part_set_extinction) {
-            lifespan -= part_extinction_l;
-          }
-
-          if (d < part_interaction_d_max && d > part_interaction_d_min) {
-            if (part_set_interaction) {
-              force = dist.setMag(part_interaction_force);
-              velocity.add(force);
-              part.connected = true;
-              connected = false;
-            }
-            if (!connected) {
-              strokeWeight(1);
-              stroke(r, g, b, a);
-              line(pos.x, pos.y, part.pos.x, part.pos.y);
+            if (d < part_extinction_d && part_set_extinction) {
+              lifespan -= part_extinction_l;
             }
           }
         }
