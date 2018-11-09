@@ -13,10 +13,10 @@
     [ARROWS] ..... move center of particlesbirth                        /
     [.] .......... move center of particlesbirth to orgin               /
     [p] .......... save current setting as preset                       /
-    [u] .......... update current preset                                /
-    [0 - 3] ...... load preset                                          /
+    [o] .......... update current preset                                /
     mouse-left ... set target                                           /
     mouse-right .. clear all targets                                    /
+    [t, u] ....... strength of the current target                       /
     [z] .......... reverse polarity of the current target               /
     ---------------------------------------------------------------------
 */
@@ -52,14 +52,16 @@ boolean targt_removed = false;
 boolean targt_pointer = false;
 boolean targt_mouse = true;
 boolean targt_set_polarisation = true;
+float targt_set_strength = 1;
 
 // VECTORFIELD ----------------------------------------------------------
 Vectorfield vctr;
 ArrayList < Vectorfield > vectors;
 PVector vctr_segment_pos = new PVector();
-float vctr_segment_d, vctr_segment_r, vctr_maxDist;
+float vctr_segment_d, vctr_segment_r, vctr_dist_max;
 float vctr_segment_delay = 0.03;
-int vctr_segment_nx = 50, vctr_segment_ny;
+float vctr_dist_factor = 1;
+int vctr_segment_nx = 100, vctr_segment_ny;
 int vctr_segment_n, vctr_segment_n_max = 200;
 
 // PARTICLE CELLS ------------------------------------------------------
@@ -123,8 +125,8 @@ int field_border_left, field_border_top, field_border_bot;
 PVector field_center = new PVector();
 
 void setup() {
-  //size(1800, 1000, P2D);
-  fullScreen(P2D);
+  size(1800, 1000, P2D);
+  //fullScreen(P2D);
   blendMode(ADD);
 
   String[] ports = Serial.list();
@@ -151,7 +153,7 @@ void setup() {
   cells = new ArrayList < Pariclecell > ();
   particles = new ArrayList < Particle > ();
   targets = new ArrayList < Target > ();
-  targets.add(new Target(field_center.x, field_center.y, targt_set_polarisation));
+  targets.add(new Target(field_center.x, field_center.y, targt_set_polarisation, targt_set_strength));
 
   gui();
 }
@@ -275,7 +277,7 @@ void gui() {
     cp5.addBang("load_preset_3").setPosition(cp5_x += 81, cp5_y).setSize(77, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 3").getCaptionLabel().align(CENTER, CENTER);
   }
 
-  cp5_n = 3;
+  cp5_n = 4;
   Group cp5_vectorfield = cp5.addGroup("VECTORFIELD")
     .setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
@@ -296,6 +298,7 @@ void gui() {
 
     cp5.addSlider("vctr_segment_nx", 5, vctr_segment_n_max, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
     cp5.addSlider("vctr_segment_delay", 0.01, 0.2, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
+    cp5.addSlider("vctr_dist_factor", 0.1, 10, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
   }
 
   cp5_n = 7;
@@ -306,7 +309,7 @@ void gui() {
     cp5_particles.getCaptionLabel().align(CENTER, CENTER);
 
     cp5.addToggle("part_birth_circle").setPosition(0, cp5_y = 3).setSize(40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_birth_circle_r", 1, field_height / 2 - 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles).setValue(field_height * 0.45);
+    cp5.addSlider("part_birth_circle_r", 1, field_height / 2, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles).setValue(field_height * 0.45);
 
     cp5.addToggle("part_set").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_size", 1, 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
@@ -424,6 +427,14 @@ void control() {
     targt_set_polarisation = false;
   } else targt_set_polarisation = true;
 
+  // strength of the current target
+  if (keyPressed && key == 't') {
+    targt_set_strength += 0.1;
+  }
+  if (keyPressed && key == 'u' && targt_set_strength >= 0.5) {
+    targt_set_strength -= 0.1;
+  }
+
   // visibility cursor
   if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) {
     noCursor();
@@ -445,7 +456,7 @@ void control() {
   // save and load presets
   if (keyPressed) {
     if (key == 'p') cp5.saveProperties(("\\presets\\preset.json"));
-    if (key == 'u') cp5.saveProperties(("\\presets\\preset_" + str(load_preset_last) + ".json"));
+    if (key == 'o') cp5.saveProperties(("\\presets\\preset_" + str(load_preset_last) + ".json"));
   }
   if (load_preset_0) {
     cp5.loadProperties(("\\presets\\preset_0.json"));
@@ -481,7 +492,7 @@ String loaded(int i) {
 void mouseClicked() {
   if (targt_mouse) {
     if (mouseButton == LEFT && mouseX > field_border_left) {
-      targets.add(new Target(mouseX, mouseY, targt_set_polarisation));
+      targets.add(new Target(mouseX, mouseY, targt_set_polarisation, targt_set_strength));
     }
     if (mouseButton == RIGHT && targets.size() > 1 && mouseX > field_border_left) {
       for (int i = targets.size() - 1; i > 0; i--) targets.remove(i);
@@ -498,15 +509,18 @@ void targets() {
       if (targt_removed) {
         targets.get(0).update(mouseX, mouseY);
         targets.get(0).polarisation(targt_set_polarisation);
+        targets.get(0).strength(targt_set_strength);
         targt_removed = false;
       } else {
         targets.get(0).update(mouseX, mouseY);
         targets.get(0).polarisation(targt_set_polarisation);
+        targets.get(0).strength(targt_set_strength);
       }
     }
 
     if (mouseX < field_border_left || mouseY < field_border_top || mouseY > height - field_border_bot) {
-      if (targets.size() == 1) {
+      targt_set_strength = 1;
+      if (targets.size() == 1 && targets.get(0).pos.x < field_border_left + 20) {
         targets.get(0).update(field_center.x, field_center.y);
       }
       if (targets.size() > 1 && !targt_removed) {
@@ -618,7 +632,7 @@ void field() {
 
     vctr_segment_d = field_height / vctr_segment_nx;
     vctr_segment_r = vctr_segment_d / 2;
-    vctr_maxDist = sqrt(2 * sq((vctr_segment_nx - 1) * vctr_segment_d));
+    vctr_dist_max = sqrt(sq(field_width - vctr_segment_r) + sq(field_height - vctr_segment_r));
 
     for (int i = 0; i < vctr_segment_ny; i++) {
       for (int j = 0; j < vctr_segment_nx; j++) {
@@ -632,7 +646,7 @@ void field() {
   for (int i = 0; i < vctr_segment_n; i++) {
     Vectorfield vctr = vectors.get(i);
     for (int j = targets.size() - 1; j >= 0; j--) {
-      vctr.target(targets.get(j).pos, targets.get(j).pol);
+      vctr.target(targets.get(j).pos, targets.get(j).pol, targets.get(j).strgth);
       vctr.magnitude(vctr_segment_delay);
     }
     vctr.colorize(theme);
@@ -758,12 +772,17 @@ class Pointer {
 class Target {
   PVector pos = new PVector();
   boolean pol;
+  float strgth;
 
-  Target(float x, float y, boolean pol) {
+  color red = color(255, 0, 0);
+  color blue = color(0, 0, 255);
+
+  Target(float x, float y, boolean pol, float strgth) {
     pos.x = x;
     pos.y = y;
 
     this.pol = pol;
+    this.strgth = strgth;
   }
 
   void update(float x, float y) {
@@ -775,13 +794,21 @@ class Target {
     this.pol = pol;
   }
 
+  void strength(float strgth) {
+    this.strgth = strgth;
+  }
+
   void display(boolean set) {
     if (set) {
-      noFill();
-      if (pol) stroke(255, 0, 0);
-      else stroke(0, 0, 255);
+      if (pol) {
+        stroke(255, 0, 0);
+      } else {
+        stroke(0, 0, 255);
+      }
+
       strokeWeight(2);
-      ellipse(pos.x, pos.y, 15, 15);
+      float d = 15 * strgth;
+      ellipse(pos.x, pos.y, d, d);
     }
   }
 }
@@ -795,18 +822,24 @@ class Vectorfield {
   PVector force = new PVector();
 
   color c = color(90);
-  float magnitude, dist;
+
+  float magnitude, dist, factor;
 
   Vectorfield(PVector orgin) {
     this.orgin.x = orgin.x;
     this.orgin.y = orgin.y;
   }
 
-  void target(PVector target, boolean polarisation) {
+  void target(PVector target, boolean polarisation, float factor) {
+    this.factor = factor;
+
     dist = orgin.dist(target);
-    dist = vctr_segment_r - vctr_segment_r * dist / vctr_maxDist;
+
+    float s = dist / vctr_dist_max;
+    float f = 1 - pow(s, 0.5);
+
     direct = PVector.sub(target, orgin);
-    direct.setMag(dist);
+    direct.setMag(f * vctr_segment_r * vctr_dist_factor * factor);
     if (!polarisation) direct.mult(-1);
     direct.add(orgin);
   }
@@ -831,6 +864,9 @@ class Vectorfield {
   void colorize(int input) {
     float scope;
     int n, r;
+
+    magnitude /= vctr_dist_factor;
+
     strokeWeight(1);
 
     switch (input) {
