@@ -7,17 +7,19 @@
 */
 
 /*  SHORT-KEYS ----------------------------------------------------------
-    [q, w] ....... gui hide / show                                      /
-    [s] .......... save screen as pdf                                   /
-    [p] .......... save current setting as preset                       /
-    [o] .......... update current preset                                /
-    [ARROWS] ..... move center of particlesbirth                        /
-    [.] .......... move center of particlesbirth to orgin               /
-    mouse-left ... set target                                           /
-    mouse-right .. clear all targets                                    /
-    [1 - 9] ...... select target                                        /
-    [t, u] ....... strength of the current target                       /
-    [z] .......... reverse polarity of the current target               /
+    [q, w] ........ gui hide / show                                     /
+    [s] ........... save screen as pdf                                  /
+    [p] ........... save current setting as preset                      /
+    [o] ........... update current preset                               /
+    [i + ARROWS] .. move center of particlesbirth                       /
+    [i + .] ....... move center of particlesbirth to orgin              /
+    mouse-left .... set target                                          /
+    mouse-right ... clear all targets                                   /
+    [1 - 9] ....... select target                                       /
+    [r + ARROWS] .. move current target                                 /
+    [. + ARROWS] .. move center of particlesbirth to current target     /
+    [t, u] ........ strength of the current target                      /
+    [z] ........... reverse polarity of the current target              /
     ---------------------------------------------------------------------
 */
 
@@ -117,6 +119,7 @@ boolean record_pdf = false;
 boolean background_display = true;
 boolean targt_display = false;
 boolean load_preset_0, load_preset_1, load_preset_2, load_preset_3;
+boolean move_target = false, move_particles = false;
 int load_preset_last = 0;
 int background_color = 0;
 int theme = 0;
@@ -423,45 +426,10 @@ void control() {
     cp5.show();
   }
 
-  // reverse polarity of the current target 
-  if (keyPressed && key == 'z') {
-    targt_set_polarisation = false;
-  } else targt_set_polarisation = true;
-
-  // strength of the current target
-  if (keyPressed && key == 't' && targt_set_strength <= 2) {
-    targt_set_strength += 0.1;
-  }
-  if (keyPressed && key == 'u' && targt_set_strength >= 0.5) {
-    targt_set_strength -= 0.1;
-  }
-
-  // select target
-  if (keyPressed) {
-    for (int i = 0; i < targets.size(); i++) {
-      if (key == i + 49) {
-        targets.get(i).select(true);
-      } else targets.get(i).select(false);
-    }
-  }
-
   // visibility cursor
   if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) {
     noCursor();
   } else cursor();
-
-  // move center of particlesbirth
-  if (keyPressed) {
-    if (key == CODED) {
-      if (keyCode == UP) paricles_birth_center_pos.y -= 1;
-      if (keyCode == DOWN) paricles_birth_center_pos.y += 1;
-      if (keyCode == LEFT) paricles_birth_center_pos.x -= 1;
-      if (keyCode == RIGHT) paricles_birth_center_pos.x += 1;
-    }
-    if (key == '.') {
-      paricles_birth_center_pos = field_center.copy();
-    }
-  }
 
   // save and load presets
   if (keyPressed) {
@@ -511,50 +479,116 @@ void mouseClicked() {
 }
 
 void targets() {
+  if (keyPressed && key == 'z') { // reverse polarity of the current target 
+    targt_set_polarisation = false;
+  } else targt_set_polarisation = true;
+
+  if (keyPressed && key == 't' && targt_set_strength <= 2) { // add strength of the current target
+    targt_set_strength += 0.1;
+  }
+  if (keyPressed && key == 'u' && targt_set_strength >= 0.5) { // sub strength of the current target
+    targt_set_strength -= 0.1;
+  }
+
   if (targt_pointer) {
     targt_mouse = false;
   } else targt_mouse = true;
 
+  int n = targets.size() - 1;
   if (targt_mouse) {
     if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) {
       if (targt_removed) {
-        targets.get(0).update(mouseX, mouseY);
-        targets.get(0).polarisation(targt_set_polarisation);
-        targets.get(0).strength(targt_set_strength);
+        targets.get(n).update(mouseX, mouseY);
+        targets.get(n).polarisation(targt_set_polarisation);
+        targets.get(n).strength(targt_set_strength);
         targt_removed = false;
       } else {
-        targets.get(0).update(mouseX, mouseY);
-        targets.get(0).polarisation(targt_set_polarisation);
-        targets.get(0).strength(targt_set_strength);
+        targets.get(n).update(mouseX, mouseY);
+        targets.get(n).polarisation(targt_set_polarisation);
+        targets.get(n).strength(targt_set_strength);
       }
     }
-
     if (mouseX < field_border_left || mouseY < field_border_top || mouseY > height - field_border_bot) {
       targt_set_strength = 1;
       if (targets.size() == 1 && targets.get(0).pos.x < field_border_left + 20) {
-        targets.get(0).update(field_center.x, field_center.y);
+        targets.get(n).update(field_center.x, field_center.y);
       }
       if (targets.size() > 1 && !targt_removed) {
-        targets.remove(0);
+        targets.remove(n);
         targt_removed = true;
       }
     }
   }
-
   if (targt_pointer && stream_port_on) {
     pointer_targets.calculation(stream_data_angle_rot, stream_data_magni_u);
-    targets.get(0).update(pointer_targets.magnitude.x, pointer_targets.magnitude.y);
+    targets.get(n).update(pointer_targets.magnitude.x, pointer_targets.magnitude.y);
   }
 
   targt_get_strength = 0;
   for (int i = 0; i < targets.size(); i++) {
     targets.get(i).display(targt_display);
     targt_get_strength += targets.get(i).strgth;
+
+    if (keyPressed) {
+      if (key >= 49) { // select target
+        if (key == i + 49) {
+          targets.get(i).select(true);
+        } else if (key >= 49 && key <= 49 + targets.size()) {
+          targets.get(i).select(false);
+        }
+      }
+      if (targets.get(i).sel) { // change selected target
+        if (key == 't' && targets.get(i).strgth <= 10) {
+          targets.get(i).strgth += 0.05;
+        }
+        if (key == 'u' && targets.get(i).strgth >= 0.1) {
+          targets.get(i).strgth -= 0.05;
+        }
+        if (key == 'z') {
+          if (targets.get(i).pol == false) {
+            targets.get(i).pol = true;
+          } else if (targets.get(i).pol == true) {
+            targets.get(i).pol = false;
+          }
+        }
+        if (key == '.') {
+          paricles_birth_center_pos = targets.get(i).pos.copy();
+        }
+        if (key == 'r') move_target = true;
+        if (move_target) {
+          move_particles = false;
+          if (keyCode == UP) {
+            targets.get(i).pos.y -= 0.1;
+          }
+          if (keyCode == DOWN) {
+            targets.get(i).pos.y += 0.1;
+          }
+          if (keyCode == LEFT) {
+            targets.get(i).pos.x -= 0.1;
+          }
+          if (keyCode == RIGHT) {
+            targets.get(i).pos.x += 0.1;
+          }
+        }
+      }
+    }
   }
   targt_get_strength /= targets.size();
 }
 
 void particles() {
+  if (keyPressed) {
+    if (key == 'i') move_particles = true; // move center of particlesbirth
+    if (move_particles) {
+      move_target = false;
+      if (keyCode == UP) paricles_birth_center_pos.y -= 1;
+      if (keyCode == DOWN) paricles_birth_center_pos.y += 1;
+      if (keyCode == LEFT) paricles_birth_center_pos.x -= 1;
+      if (keyCode == RIGHT) paricles_birth_center_pos.x += 1;
+      if (key == '.') paricles_birth_center_pos = field_center.copy();
+    }
+  }
+
   if (part_birth_circle) {
     part_streams_circle = 4 * part_streams;
     for (int i = 0; i <= part_streams_circle; i++) {
@@ -579,8 +613,6 @@ void particles() {
     part.lifespan();
     part.getVector();
     part.getCell(i);
-    part.addPull(part_pull);
-    part.addNoise(part_noise);
     part.addInteraction(part_interaction);
     part.colorize(true);
     part.display(part_set);
@@ -965,8 +997,6 @@ class Particle {
   PVector velocity = new PVector();
   PVector force = new PVector();
   PVector dist = new PVector();
-  PVector pull = new PVector();
-  PVector repul = new PVector();
 
   float lifespan, lifespan_start, lifespan_range;
   int active_vector, saturation;
@@ -1094,17 +1124,6 @@ class Particle {
           }
         }
       }
-    }
-  }
-
-  void addPull(boolean set) {
-    if (set) pull = velocity.mult(-1);
-  }
-
-  void addNoise(boolean set) {
-    if (set) {
-      pos.x += random(-0.1, 0.1);
-      pos.y += random(-0.1, 0.1);
     }
   }
 
