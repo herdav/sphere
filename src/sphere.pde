@@ -7,15 +7,15 @@
 */
 
 /*  SHORT-KEYS ----------------------------------------------------------
-    [q] .......... gui hide                                             /
-    [w] .......... gui show                                             /
+    [q, w] ....... gui hide / show                                      /
     [s] .......... save screen as pdf                                   /
-    [ARROWS] ..... move center of particlesbirth                        /
-    [.] .......... move center of particlesbirth to orgin               /
     [p] .......... save current setting as preset                       /
     [o] .......... update current preset                                /
+    [ARROWS] ..... move center of particlesbirth                        /
+    [.] .......... move center of particlesbirth to orgin               /
     mouse-left ... set target                                           /
     mouse-right .. clear all targets                                    /
+    [1 - 9] ...... select target                                        /
     [t, u] ....... strength of the current target                       /
     [z] .......... reverse polarity of the current target               /
     ---------------------------------------------------------------------
@@ -53,6 +53,7 @@ boolean targt_pointer = false;
 boolean targt_mouse = true;
 boolean targt_set_polarisation = true;
 float targt_set_strength = 1;
+float targt_get_strength;
 
 // VECTORFIELD ----------------------------------------------------------
 Vectorfield vctr;
@@ -428,11 +429,20 @@ void control() {
   } else targt_set_polarisation = true;
 
   // strength of the current target
-  if (keyPressed && key == 't') {
+  if (keyPressed && key == 't' && targt_set_strength <= 2) {
     targt_set_strength += 0.1;
   }
   if (keyPressed && key == 'u' && targt_set_strength >= 0.5) {
     targt_set_strength -= 0.1;
+  }
+
+  // select target
+  if (keyPressed) {
+    for (int i = 0; i < targets.size(); i++) {
+      if (key == i + 49) {
+        targets.get(i).select(true);
+      } else targets.get(i).select(false);
+    }
   }
 
   // visibility cursor
@@ -501,8 +511,9 @@ void mouseClicked() {
 }
 
 void targets() {
-  if (targt_pointer) targt_mouse = false;
-  else targt_mouse = true;
+  if (targt_pointer) {
+    targt_mouse = false;
+  } else targt_mouse = true;
 
   if (targt_mouse) {
     if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) {
@@ -535,9 +546,12 @@ void targets() {
     targets.get(0).update(pointer_targets.magnitude.x, pointer_targets.magnitude.y);
   }
 
-  for (Target targets: targets) {
-    targets.display(targt_display);
+  targt_get_strength = 0;
+  for (int i = 0; i < targets.size(); i++) {
+    targets.get(i).display(targt_display);
+    targt_get_strength += targets.get(i).strgth;
   }
+  targt_get_strength /= targets.size();
 }
 
 void particles() {
@@ -771,7 +785,7 @@ class Pointer {
 
 class Target {
   PVector pos = new PVector();
-  boolean pol;
+  boolean pol, sel;
   float strgth;
 
   color red = color(255, 0, 0);
@@ -785,26 +799,32 @@ class Target {
     this.strgth = strgth;
   }
 
-  void update(float x, float y) {
-    pos.x = x;
-    pos.y = y;
-  }
-
   void polarisation(boolean pol) {
     this.pol = pol;
+  }
+
+  void select(boolean sel) {
+    this.sel = sel;
   }
 
   void strength(float strgth) {
     this.strgth = strgth;
   }
 
+  void update(float x, float y) {
+    pos.x = x;
+    pos.y = y;
+  }
+
   void display(boolean set) {
     if (set) {
       if (pol) {
         stroke(255, 0, 0);
-      } else {
-        stroke(0, 0, 255);
-      }
+      } else stroke(0, 0, 255);
+
+      if (sel) {
+        fill(255, 127);
+      } else noFill();
 
       strokeWeight(2);
       float d = 15 * strgth;
@@ -865,16 +885,16 @@ class Vectorfield {
     float scope;
     int n, r;
 
-    magnitude /= vctr_dist_factor;
+    magnitude /= vctr_dist_factor * targt_get_strength;
 
     strokeWeight(1);
 
     switch (input) {
       case 1: // vector field
         noFill();
-        stroke(c);
+        /*stroke(c);
         line(orgin.x, orgin.y, direct.x, direct.y);
-        line(direct.x, direct.y, result.x, result.y);
+        line(direct.x, direct.y, result.x, result.y);*/
         stroke(255);
         line(orgin.x, orgin.y, result.x, result.y);
         break;
