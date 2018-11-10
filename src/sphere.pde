@@ -7,7 +7,7 @@
 */
 
 /*  SHORT-KEYS ----------------------------------------------------------
-    [q, w] ........ gui hide / show                                     /
+    [q, w] ........ gui hide/show                                       /
     [s] ........... save screen as pdf                                  /
     [p] ........... save current setting as preset                      /
     [o] ........... update current preset                               /
@@ -18,7 +18,7 @@
     [1 - 9] ....... select target                                       /
     [r + ARROWS] .. move current target                                 /
     [. + ARROWS] .. move center of particlesbirth to current target     /
-    [t, u] ........ strength of the current target                      /
+    [t, u] ........ add/sub strength to the current target              /
     [z] ........... reverse polarity of the current target              /
     ---------------------------------------------------------------------
 */
@@ -416,23 +416,20 @@ void controlEvent(ControlEvent theControlEvent) {
 }
 
 void control() {
-  // visibility gui
-  if (keyPressed && key == 'q') {
+  if (keyPressed && key == 'q') { // hide gui
     controls_show = false;
     cp5.hide();
   }
-  if (keyPressed && key == 'w' || !controls_show && mouseX < 100) {
+  if (keyPressed && key == 'w' || !controls_show && mouseX < 100) { // show gui
     controls_show = true;
     cp5.show();
   }
 
-  // visibility cursor
-  if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) {
+  if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) { // visibility cursor
     noCursor();
   } else cursor();
 
-  // save and load presets
-  if (keyPressed) {
+  if (keyPressed) { // save and load presets
     if (key == 'p') cp5.saveProperties(("\\presets\\preset.json"));
     if (key == 'o') cp5.saveProperties(("\\presets\\preset_" + str(load_preset_last) + ".json"));
   }
@@ -469,34 +466,35 @@ String loaded(int i) {
 
 void mouseClicked() {
   if (targt_mouse) {
-    if (mouseButton == LEFT && mouseX > field_border_left) {
+    if (mouseButton == LEFT && mouseX > field_border_left) {  // set new target
       targets.add(new Target(mouseX, mouseY, targt_set_polarisation, targt_set_strength));
     }
-    if (mouseButton == RIGHT && targets.size() > 1 && mouseX > field_border_left) {
+    if (mouseButton == RIGHT && targets.size() > 1 && mouseX > field_border_left) { // delete all targets
       for (int i = targets.size() - 1; i > 0; i--) targets.remove(i);
     }
   }
 }
 
 void targets() {
-  if (keyPressed && key == 'z') { // reverse polarity of the current target 
+  if (keyPressed && key == 'z') { // set reverse polarity of the current target 
     targt_set_polarisation = false;
   } else targt_set_polarisation = true;
 
-  if (keyPressed && key == 't' && targt_set_strength <= 2) { // add strength of the current target
+  if (keyPressed && key == 't' && targt_set_strength <= 2) { // add strength to the current target
     targt_set_strength += 0.1;
   }
-  if (keyPressed && key == 'u' && targt_set_strength >= 0.5) { // sub strength of the current target
+  if (keyPressed && key == 'u' && targt_set_strength >= 0.5) { // sub strength from the current target
     targt_set_strength -= 0.1;
   }
 
-  if (targt_pointer) {
+  if (targt_pointer) { // interlocking mouse<>device
     targt_mouse = false;
   } else targt_mouse = true;
 
-  int n = targets.size() - 1;
-  if (targt_mouse) {
-    if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) {
+  int n = targets.size() - 1; // last target set
+
+  if (targt_mouse) { // if target controlled by mouse
+    if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) { // if mouse on the field
       if (targt_removed) {
         targets.get(n).update(mouseX, mouseY);
         targets.get(n).polarisation(targt_set_polarisation);
@@ -508,7 +506,7 @@ void targets() {
         targets.get(n).strength(targt_set_strength);
       }
     }
-    if (mouseX < field_border_left || mouseY < field_border_top || mouseY > height - field_border_bot) {
+    if (mouseX < field_border_left || mouseY < field_border_top || mouseY > height - field_border_bot) { // if mouse leaves the field
       targt_set_strength = 1;
       if (targets.size() == 1 && targets.get(0).pos.x < field_border_left + 20) {
         targets.get(n).update(field_center.x, field_center.y);
@@ -519,7 +517,8 @@ void targets() {
       }
     }
   }
-  if (targt_pointer && stream_port_on) {
+
+  if (targt_pointer && stream_port_on) { // if target contolled by device
     pointer_targets.calculation(stream_data_angle_rot, stream_data_magni_u);
     targets.get(n).update(pointer_targets.magnitude.x, pointer_targets.magnitude.y);
   }
@@ -527,7 +526,7 @@ void targets() {
   targt_get_strength = 0;
   for (int i = 0; i < targets.size(); i++) {
     targets.get(i).display(targt_display);
-    targt_get_strength += targets.get(i).strgth;
+    targt_get_strength += targets.get(i).strgth; // add all strengths
 
     if (keyPressed) {
       if (key >= 49) { // select target
@@ -558,22 +557,22 @@ void targets() {
         if (move_target) {
           move_particles = false;
           if (keyCode == UP) {
-            targets.get(i).pos.y -= 0.1;
+            targets.get(i).pos.y -= 1;
           }
           if (keyCode == DOWN) {
-            targets.get(i).pos.y += 0.1;
+            targets.get(i).pos.y += 1;
           }
           if (keyCode == LEFT) {
-            targets.get(i).pos.x -= 0.1;
+            targets.get(i).pos.x -= 1;
           }
           if (keyCode == RIGHT) {
-            targets.get(i).pos.x += 0.1;
+            targets.get(i).pos.x += 1;
           }
         }
       }
     }
   }
-  targt_get_strength /= targets.size();
+  targt_get_strength /= targets.size(); // mean value of all strengths for calculation in vectorfield
 }
 
 void particles() {
