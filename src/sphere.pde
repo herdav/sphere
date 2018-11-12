@@ -45,7 +45,6 @@ Pointer pointer_yaw, pointer_x_axis, pointer_y_axis, pointer_stp;
 Pointer pointer_targets;
 PVector pointer_rstr = new PVector();
 boolean pointer_control = false;
-int pointer_margin_x = 300;
 
 // TARGETS --------------------------------------------------------------
 Target targt;
@@ -97,14 +96,15 @@ float part_interaction_force = 0;
 float part_extinction_d = 1;
 float part_extinction_l = 1;
 float part_speed = 8;
-float part_lx, part_ly;
 float part_birth_circle_r;
+float part_distrelated_potency = 0.5;
+float part_decline_factor = 1;
 boolean part_clear = false;
-boolean part_noise = false;
-boolean part_pull = false;
 boolean part_interaction = false;
 boolean part_set_extinction = false;
 boolean part_set_interaction = false;
+boolean part_set_distrelated = true;
+boolean part_set_decline = false;
 boolean part_birth_circle = true;
 boolean part_set = true;
 PVector paricles_birth_circle_pos = new PVector();
@@ -112,7 +112,6 @@ PVector paricles_birth_center_pos = new PVector();
 
 // GUI & CONTROLS -------------------------------------------------------
 ControlP5 cp5;
-int cp5_w = 320;
 color color_a, color_b, color_c, color_d;
 boolean controls_show = true;
 boolean record_pdf = false;
@@ -243,6 +242,7 @@ void fieldsize() {
 }
 
 void gui() {
+  int cp5_w = 320;
   int cp5_h = 14;
   int cp5_s = 4;
   int cp5_x, cp5_y;
@@ -341,7 +341,7 @@ void gui() {
       .setBroadcast(true);
   }
 
-  cp5_n = 6;
+  cp5_n = 8;
   Group cp5_part_interaction = cp5.addGroup("PARTICLES INTERACTION")
     .setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
@@ -364,8 +364,14 @@ void gui() {
       .setRangeValues(part_interaction_d_min, part_interaction_d_max)
       .setBroadcast(true);
 
+    cp5.addToggle("part_set_decline").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("part_decline_factor", 0, 100, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
+
     cp5.addToggle("part_set_interaction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_interaction_force", -1, 1, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
+
+    cp5.addToggle("part_set_distrelated").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("part_distrelated_potency", 0, 1, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
 
     cp5.addToggle("part_set_extinction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h * 2 + 4).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_extinction_d", 0, 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
@@ -413,6 +419,7 @@ void controlEvent(ControlEvent theControlEvent) {
     part_interaction_d_min = int(theControlEvent.getController().getArrayValue(0));
     part_interaction_d_max = int(theControlEvent.getController().getArrayValue(1));
   }
+
 }
 
 void control() {
@@ -466,7 +473,7 @@ String loaded(int i) {
 
 void mouseClicked() {
   if (targt_mouse) {
-    if (mouseButton == LEFT && mouseX > field_border_left) {  // set new target
+    if (mouseButton == LEFT && mouseX > field_border_left) { // set new target
       targets.add(new Target(mouseX, mouseY, targt_set_polarisation, targt_set_strength));
     }
     if (mouseButton == RIGHT && targets.size() > 1 && mouseX > field_border_left) { // delete all targets
@@ -499,6 +506,7 @@ void targets() {
         targets.get(n).update(mouseX, mouseY);
         targets.get(n).polarisation(targt_set_polarisation);
         targets.get(n).strength(targt_set_strength);
+        for (int i = 0; i < targets.size(); i++) targets.get(i).select(false);
         targt_removed = false;
       } else {
         targets.get(n).update(mouseX, mouseY);
@@ -508,7 +516,7 @@ void targets() {
     }
     if (mouseX < field_border_left || mouseY < field_border_top || mouseY > height - field_border_bot) { // if mouse leaves the field
       targt_set_strength = 1;
-      if (targets.size() == 1 && targets.get(0).pos.x < field_border_left + 20) {
+      if (targets.size() == 1 && targets.get(n).pos.x < field_border_left + 20) {
         targets.get(n).update(field_center.x, field_center.y);
       }
       if (targets.size() > 1 && !targt_removed) {
@@ -1094,17 +1102,24 @@ class Particle {
   void addInteraction(boolean set) {
     if (set) {
       if (active_cell >= 0 && active_cell < cells.size()) {
-        Pariclecell cell = cells.get(active_cell); // compare only the particles in cells
+        Pariclecell cell = cells.get(active_cell);
 
         if (cell.list.size() > 0) {
           for (int i = 0; i < cell.list.size(); i++) {
-            Particle part = particles.get(cell.list.get(i));
+            Particle part = particles.get(cell.list.get(i)); // compare only the particles in cells
+
             dist = PVector.sub(part.pos, pos);
             float d = dist.mag();
+            float f = 1;
+
+            if (part_set_distrelated) {
+              float s = d / part_interaction_d_max;
+              f = 1 - pow(s, part_distrelated_potency);
+            }
 
             if (d < part_interaction_d_max && d > part_interaction_d_min) {
               if (part_set_interaction) {
-                force = dist.setMag(part_interaction_force);
+                force = dist.setMag(f * part_interaction_force);
                 velocity.add(force);
 
                 part.connected = true;
@@ -1120,6 +1135,11 @@ class Particle {
             if (d < part_extinction_d && part_set_extinction) {
               lifespan -= part_extinction_l;
             }
+          }
+
+          if (part_set_decline) {
+            float decline = cell.list.size() / cell_set_max_entries;
+            lifespan -= decline * part_decline_factor;
           }
         }
       }
