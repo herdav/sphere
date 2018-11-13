@@ -18,7 +18,7 @@
     [1 - 9] ....... select target                                       /
     [r + ARROWS] .. move current target                                 /
     [. + ARROWS] .. move center of particlesbirth to current target     /
-    [t, u] ........ add/sub strength to the current target              /
+    [t, u] ........ sub/add strength to the current target              /
     [z] ........... reverse polarity of the current target              /
     ---------------------------------------------------------------------
 */
@@ -304,7 +304,7 @@ void gui() {
 
     cp5.addSlider("vctr_segment_nx", 5, vctr_segment_n_max, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
     cp5.addSlider("vctr_segment_delay", 0.01, 0.2, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
-    cp5.addSlider("vctr_dist_factor", 0.1, 10, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
+    cp5.addSlider("vctr_dist_factor", 0, 10, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
   }
 
   cp5_n = 8;
@@ -359,7 +359,10 @@ void gui() {
     cp5.addToggle("cell_segment_display").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SHOW").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("cell_set_max_entries", 2, 200, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
 
-    cp5.addToggle("part_interaction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("ADD").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("part_set_decline").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("part_decline_factor", 0, 100, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
+
+    cp5.addToggle("part_interaction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addRange("part_interaction_range").setGroup(cp5_part_interaction)
       .setBroadcast(false)
       .setPosition(43, cp5_y)
@@ -371,9 +374,6 @@ void gui() {
 
     cp5.addToggle("part_set_interaction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_interaction_force", -1, 1, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
-
-    cp5.addToggle("part_set_decline").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_decline_factor", 0, 100, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
 
     cp5.addToggle("part_set_distrelated").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_distrelated_potency", 0, 1, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
@@ -492,10 +492,10 @@ void targets() {
     targt_set_polarisation = false;
   } else targt_set_polarisation = true;
 
-  if (keyPressed && key == 't' && targt_set_strength <= 2) { // add strength to the current target
+  if (keyPressed && key == 'u' && targt_set_strength <= 2) { // add strength to the current target
     targt_set_strength += 0.1;
   }
-  if (keyPressed && key == 'u' && targt_set_strength >= 0.5) { // sub strength from the current target
+  if (keyPressed && key == 't' && targt_set_strength >= 0.5) { // sub strength from the current target
     targt_set_strength -= 0.1;
   }
 
@@ -550,10 +550,10 @@ void targets() {
         }
       }
       if (targets.get(i).sel) { // change selected target
-        if (key == 't' && targets.get(i).strgth <= 10) {
+        if (key == 'u' && targets.get(i).strgth <= 10) {
           targets.get(i).strgth += 0.05;
         }
-        if (key == 'u' && targets.get(i).strgth >= 0.1) {
+        if (key == 't' && targets.get(i).strgth >= 0.1) {
           targets.get(i).strgth -= 0.05;
         }
         if (key == 'z') {
@@ -1047,8 +1047,8 @@ class Particle {
     if (part_set_acceleration) {
       PVector aclr = new PVector();
       PVector.sub(pos, pos_before, aclr);
-      float l = strength(lifespan, lifespan_start, 0.5);
-      aclr.mult(l * part_acceleration_factor);
+      float f = strength(lifespan, lifespan_start, 0.5);
+      aclr.mult(f * part_acceleration_factor);
       pos.add(aclr);
     }
   }
