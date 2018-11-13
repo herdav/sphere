@@ -67,8 +67,8 @@ int vctr_segment_nx = 100, vctr_segment_ny;
 int vctr_segment_n, vctr_segment_n_max = 200;
 
 // PARTICLE CELLS ------------------------------------------------------
-Pariclecell cell;
-ArrayList < Pariclecell > cells;
+PCell cell;
+ArrayList < PCell > cells;
 PVector cell_segment_pos = new PVector();
 float cell_segment_d, cell_segment_r;
 int cell_segment_nx = 20, cell_segment_ny;
@@ -99,12 +99,14 @@ float part_speed = 8;
 float part_birth_circle_r;
 float part_distrelated_potency = 0.5;
 float part_decline_factor = 1;
+float part_acceleration_factor = 0;
 boolean part_clear = false;
 boolean part_interaction = false;
 boolean part_set_extinction = false;
 boolean part_set_interaction = false;
-boolean part_set_distrelated = true;
+boolean part_set_distrelated = false;
 boolean part_set_decline = false;
+boolean part_set_acceleration = false;
 boolean part_birth_circle = true;
 boolean part_set = true;
 PVector paricles_birth_circle_pos = new PVector();
@@ -153,7 +155,7 @@ void setup() {
 
   pointer_targets = new Pointer(field_center.x, field_center.y, field_height / 1.5);
   vectors = new ArrayList < Vectorfield > ();
-  cells = new ArrayList < Pariclecell > ();
+  cells = new ArrayList < PCell > ();
   particles = new ArrayList < Particle > ();
   targets = new ArrayList < Target > ();
   targets.add(new Target(field_center.x, field_center.y, targt_set_polarisation, targt_set_strength));
@@ -305,7 +307,7 @@ void gui() {
     cp5.addSlider("vctr_dist_factor", 0.1, 10, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
   }
 
-  cp5_n = 7;
+  cp5_n = 8;
   Group cp5_particles = cp5.addGroup("PARTICLES")
     .setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
@@ -321,6 +323,9 @@ void gui() {
     cp5.addSlider("part_streams", 1, 200, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
     cp5.addSlider("part_lifespan", 1, part_lifespan_max, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
     cp5.addSlider("part_speed", -2, 40, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
+
+    cp5.addToggle("part_set_acceleration").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("part_acceleration_factor", -2, 2, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
 
     cp5.addRange("part_saturation_scope").setGroup(cp5_particles)
       .setBroadcast(false)
@@ -364,11 +369,11 @@ void gui() {
       .setRangeValues(part_interaction_d_min, part_interaction_d_max)
       .setBroadcast(true);
 
-    cp5.addToggle("part_set_decline").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_decline_factor", 0, 100, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
-
     cp5.addToggle("part_set_interaction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_interaction_force", -1, 1, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
+
+    cp5.addToggle("part_set_decline").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("part_decline_factor", 0, 100, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
 
     cp5.addToggle("part_set_distrelated").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_distrelated_potency", 0, 1, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
@@ -622,6 +627,8 @@ void particles() {
     part.getCell(i);
     part.addInteraction(part_interaction);
     part.colorize(true);
+    part.acceleration();
+    part.update();
     part.display(part_set);
   }
 
@@ -654,14 +661,14 @@ void cells() {
       for (int j = 0; j < cell_segment_nx; j++) {
         cell_segment_pos.x = field_border_left + j * cell_segment_d + cell_segment_r;
         cell_segment_pos.y = field_border_top + i * cell_segment_d + cell_segment_r;
-        cells.add(new Pariclecell(cell_segment_pos));
+        cells.add(new PCell(cell_segment_pos));
       }
     }
   }
 
   cell_calculationload_eff = 0;
   for (int i = 0; i < cells.size(); i++) {
-    Pariclecell cell = cells.get(i);
+    PCell cell = cells.get(i);
     if (cell.list.size() > 0) {
       cell.display(cell_segment_display);
       cell_calculationload_eff += int(sq(cell.list.size()));
@@ -872,17 +879,21 @@ class Target {
   }
 }
 
+float strength(float d, float d_max, float n) {
+  float s = d / d_max;
+  float f = 1 - pow(s, n);
+  return f;
+}
+
 class Vectorfield {
   PVector orgin = new PVector();
-  PVector target = new PVector();
   PVector direct = new PVector();
-  PVector offset = new PVector();
   PVector result = new PVector();
   PVector force = new PVector();
 
   color c = color(90);
 
-  float magnitude, dist, factor;
+  float magnitude;
 
   Vectorfield(PVector orgin) {
     this.orgin.x = orgin.x;
@@ -890,12 +901,8 @@ class Vectorfield {
   }
 
   void target(PVector target, boolean polarisation, float factor) {
-    this.factor = factor;
-
-    dist = orgin.dist(target);
-
-    float s = dist / vctr_dist_max;
-    float f = 1 - pow(s, 0.5);
+    float dist = orgin.dist(target);
+    float f = strength(dist, vctr_dist_max, 0.5);
 
     direct = PVector.sub(target, orgin);
     direct.setMag(f * vctr_segment_r * vctr_dist_factor * factor);
@@ -904,7 +911,8 @@ class Vectorfield {
   }
 
   void magnitude(float delay) {
-    offset = PVector.sub(direct, result);
+    PVector offset = new PVector();
+    PVector.sub(direct, result, offset);
     magnitude = offset.mag();
     offset.mult(delay);
     result.add(offset);
@@ -974,11 +982,11 @@ class Vectorfield {
   }
 }
 
-class Pariclecell {
+class PCell {
   IntList list;
   PVector orgin = new PVector();
 
-  Pariclecell(PVector orgin) {
+  PCell(PVector orgin) {
     this.orgin.x = orgin.x;
     this.orgin.y = orgin.y;
 
@@ -1001,19 +1009,12 @@ class Pariclecell {
 
 class Particle {
   PVector pos = new PVector();
+  PVector pos_before = new PVector();
   PVector velocity = new PVector();
-  PVector force = new PVector();
-  PVector dist = new PVector();
 
-  float lifespan, lifespan_start, lifespan_range;
-  int active_vector, saturation;
-
-  int id, active_cell_x, active_cell_y, active_cell;
-  int active_cell_l, active_cell_r, active_cell_t, active_cell_b,
-  active_cell_lt, active_cell_rt, active_cell_lb, active_cell_rb;
-
+  float lifespan, lifespan_start;
+  int id, active_cell;
   boolean connected = false;
-
   color argb;
   int a, r, g, b;
 
@@ -1025,6 +1026,7 @@ class Particle {
     this.argb = argb;
 
     lifespan_start = lifespan;
+    pos_before = pos.copy();
   }
 
   void lifespan() {
@@ -1035,41 +1037,54 @@ class Particle {
     }
   }
 
+  void update() {
+    velocity.setMag(part_speed);
+    pos_before = pos.copy();
+    pos.add(velocity);
+  }
+
+  void acceleration() {
+    if (part_set_acceleration) {
+      PVector aclr = new PVector();
+      PVector.sub(pos, pos_before, aclr);
+      float l = strength(lifespan, lifespan_start, 0.5);
+      aclr.mult(l * part_acceleration_factor);
+      pos.add(aclr);
+    }
+  }
+
   void getVector() {
-    active_vector = int((pos.y - field_border_top) / vctr_segment_d) * vctr_segment_ny + int((pos.x - field_border_left) / vctr_segment_d); // detect active vector
+    int active_vector = int((pos.y - field_border_top) / vctr_segment_d) * vctr_segment_ny + int((pos.x - field_border_left) / vctr_segment_d); // detect active vector
 
     if (active_vector >= 0 && active_vector < vectors.size()) {
       Vectorfield vctr = vectors.get(active_vector);
       velocity.add(vctr.force);
     }
-
-    velocity.setMag(part_speed);
-    pos.add(velocity);
   }
 
   void getCell(int id) {
     this.id = id;
 
-    active_cell_x = int((pos.x - field_border_left) / cell_segment_d);
-    active_cell_y = int((pos.y - field_border_top) / cell_segment_d);
+    int active_cell_x = int((pos.x - field_border_left) / cell_segment_d);
+    int active_cell_y = int((pos.y - field_border_top) / cell_segment_d);
 
     active_cell = active_cell_y * cell_segment_ny + active_cell_x; // detect active cell
 
     if (active_cell >= 0 && active_cell < cells.size()) {
-      Pariclecell cell = cells.get(active_cell);
+      PCell cell = cells.get(active_cell);
 
       if (cell.list.size() < cell_set_max_entries) { // set max entries in cell
         cell.list.append(id);
 
         // define surrounding cells
-        active_cell_l = active_cell_y * cell_segment_ny + (active_cell_x - 1);
-        active_cell_r = active_cell_y * cell_segment_ny + (active_cell_x + 1);
-        active_cell_t = (active_cell_y - 1) * cell_segment_ny + active_cell_x;
-        active_cell_b = (active_cell_y + 1) * cell_segment_ny + active_cell_x;
-        active_cell_lt = (active_cell_y - 1) * cell_segment_ny + (active_cell_x - 1);
-        active_cell_rt = (active_cell_y - 1) * cell_segment_ny + (active_cell_x + 1);
-        active_cell_lb = (active_cell_y + 1) * cell_segment_ny + (active_cell_x - 1);
-        active_cell_rb = (active_cell_y + 1) * cell_segment_ny + (active_cell_x + 1);
+        int active_cell_l = active_cell_y * cell_segment_ny + (active_cell_x - 1);
+        int active_cell_r = active_cell_y * cell_segment_ny + (active_cell_x + 1);
+        int active_cell_t = (active_cell_y - 1) * cell_segment_ny + active_cell_x;
+        int active_cell_b = (active_cell_y + 1) * cell_segment_ny + active_cell_x;
+        int active_cell_lt = (active_cell_y - 1) * cell_segment_ny + (active_cell_x - 1);
+        int active_cell_rt = (active_cell_y - 1) * cell_segment_ny + (active_cell_x + 1);
+        int active_cell_lb = (active_cell_y + 1) * cell_segment_ny + (active_cell_x - 1);
+        int active_cell_rb = (active_cell_y + 1) * cell_segment_ny + (active_cell_x + 1);
 
         if (active_cell_x > 0 && active_cell_x <= cell_segment_nx - 1 && active_cell_y >= 0 && active_cell_y <= cell_segment_ny - 1) {
           cells.get(active_cell_l).list.append(id);
@@ -1101,20 +1116,22 @@ class Particle {
 
   void addInteraction(boolean set) {
     if (set) {
+      PVector dist = new PVector();
+      PVector force = new PVector();
+
       if (active_cell >= 0 && active_cell < cells.size()) {
-        Pariclecell cell = cells.get(active_cell);
+        PCell cell = cells.get(active_cell);
 
         if (cell.list.size() > 0) {
           for (int i = 0; i < cell.list.size(); i++) {
             Particle part = particles.get(cell.list.get(i)); // compare only the particles in cells
 
-            dist = PVector.sub(part.pos, pos);
+            PVector.sub(part.pos, pos, dist);
             float d = dist.mag();
             float f = 1;
 
             if (part_set_distrelated) {
-              float s = d / part_interaction_d_max;
-              f = 1 - pow(s, part_distrelated_potency);
+              f = strength(d, part_interaction_d_max, part_distrelated_potency);
             }
 
             if (d < part_interaction_d_max && d > part_interaction_d_min) {
@@ -1152,11 +1169,12 @@ class Particle {
 
   void colorize(boolean set) {
     if (set) {
-      lifespan_range = int(map(lifespan, 0, lifespan_start, 255, 0));
+      int saturation;
+      int lifespan_color = int(map(lifespan, 0, lifespan_start, 255, 0));
 
-      if (lifespan_range < part_saturation_min || lifespan_range > part_saturation_max) {
+      if (lifespan_color < part_saturation_min || lifespan_color > part_saturation_max) {
         saturation = part_saturation_min_limit;
-      } else saturation = int(map(lifespan_range, part_saturation_min, part_saturation_max, part_saturation_min_limit, part_saturation_max_limit));
+      } else saturation = int(map(lifespan_color, part_saturation_min, part_saturation_max, part_saturation_min_limit, part_saturation_max_limit));
 
       a = saturation;
       r = (argb >> 16) & 0xFF;
