@@ -82,12 +82,13 @@ boolean cell_segment_display = false;
 Particle part;
 ArrayList < Particle > particles;
 int part_size = 1;
-int part_streams = 10;
-int part_streams_circle;
+int part_streams = 20;
 int part_saturation_min = 0;
 int part_saturation_max = 255;
 int part_saturation_min_limit = 0;
 int part_saturation_max_limit = 255;
+int part_birth_circle_rot_count = 0;
+float part_birth_circle_rot_speed = 60;
 float part_lifespan = 40;
 float part_lifespan_max = 200;
 float part_interaction_d_min = 0;
@@ -100,10 +101,12 @@ float part_birth_circle_r;
 float part_distrelated_potency = 0.5;
 float part_decline_factor = 1;
 float part_acceleration_factor = 0;
+boolean part_birth_circle_rot = false;
 boolean part_clear = false;
 boolean part_interaction = false;
 boolean part_set_extinction = false;
 boolean part_set_interaction = false;
+boolean part_set_interaction_line = true;
 boolean part_set_distrelated = false;
 boolean part_set_decline = false;
 boolean part_set_acceleration = false;
@@ -117,7 +120,7 @@ ControlP5 cp5;
 color color_a, color_b, color_c, color_d;
 boolean controls_show = true;
 boolean record_pdf = false;
-boolean background_display = true;
+boolean background_display = false;
 boolean targt_display = false;
 boolean load_preset_0, load_preset_1, load_preset_2, load_preset_3;
 boolean move_target = false, move_particles = false;
@@ -129,10 +132,15 @@ int field_width = field_height;
 int field_border_left, field_border_top, field_border_bot;
 PVector field_center = new PVector();
 
+// SHADER ---------------------------------------------------------------
+PShader blur;
+boolean shader_set = false;
+
 void setup() {
   size(1800, 1000, P2D);
   //fullScreen(P2D);
   blendMode(ADD);
+  blur = loadShader("blur.glsl");
 
   String[] ports = Serial.list();
   if (ports.length == 0) println("No ports found!");
@@ -164,7 +172,7 @@ void setup() {
 }
 
 void draw() {
-  background(0);
+  if (!shader_set) background(0);
   control();
   record();
   targets();
@@ -261,6 +269,7 @@ void gui() {
     .setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
     .setBarHeight(cp5_h); {
+
     cp5_system.getCaptionLabel().align(CENTER, CENTER);
 
     cp5.addToggle("pointer_control").setPosition(0, cp5_y = 3).setSize(110, cp5_h).setGroup(cp5_system).setCaptionLabel("DEVICE CONTROL DISPLAY").getCaptionLabel().align(CENTER, CENTER);
@@ -275,6 +284,7 @@ void gui() {
     .setBackgroundColor(50)
     .setBarHeight(cp5_h)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s); {
+
     cp5_presets.getCaptionLabel().align(CENTER, CENTER);
 
     cp5.addBang("load_preset_0").setPosition(cp5_x = 0, cp5_y = 3).setSize(78, cp5_h).setGroup(cp5_presets).setCaptionLabel("DEFAULT").getCaptionLabel().align(CENTER, CENTER);
@@ -307,15 +317,19 @@ void gui() {
     cp5.addSlider("vctr_dist_factor", 0, 10, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
   }
 
-  cp5_n = 8;
+  cp5_n = 9;
   Group cp5_particles = cp5.addGroup("PARTICLES")
     .setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
     .setBarHeight(cp5_h); {
+
     cp5_particles.getCaptionLabel().align(CENTER, CENTER);
 
     cp5.addToggle("part_birth_circle").setPosition(0, cp5_y = 3).setSize(40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_birth_circle_r", 1, field_height / 2, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles).setValue(field_height * 0.45);
+
+    cp5.addToggle("part_birth_circle_rot").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("part_birth_circle_rot_speed", 120, 1, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles).setValue(field_height * 0.45);
 
     cp5.addToggle("part_set").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_size", 1, 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
@@ -346,11 +360,12 @@ void gui() {
       .setBroadcast(true);
   }
 
-  cp5_n = 8;
+  cp5_n = 9;
   Group cp5_part_interaction = cp5.addGroup("PARTICLES INTERACTION")
     .setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
     .setBarHeight(cp5_h); {
+
     cp5_part_interaction.getCaptionLabel().align(CENTER, CENTER);
     cp5_vectorfield.getCaptionLabel().align(CENTER, CENTER);
 
@@ -372,6 +387,8 @@ void gui() {
       .setRangeValues(part_interaction_d_min, part_interaction_d_max)
       .setBroadcast(true);
 
+    cp5.addToggle("part_set_interaction_line").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
+
     cp5.addToggle("part_set_interaction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_interaction_force", -1, 1, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
 
@@ -387,6 +404,7 @@ void gui() {
     .setBackgroundColor(50)
     .setBarHeight(cp5_h)
     .setBackgroundHeight(147); {
+
     cp5_color.getCaptionLabel().align(CENTER, CENTER);
 
     cp5.addColorWheel("color_a", 0, 10, 100).setRGB(color(255, 0, 0)).setCaptionLabel("LEFT").setGroup(cp5_color);
@@ -395,6 +413,17 @@ void gui() {
 
     cp5.addToggle("background_display").setPosition(0, 130).setSize(40, cp5_h).setCaptionLabel("set").setGroup(cp5_color).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("background_color", 0, 255, 43, 130, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_color);
+  }
+
+  cp5_n = 1;
+  Group cp5_shaders = cp5.addGroup("SHADERS")
+    .setBackgroundColor(50)
+    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
+    .setBarHeight(cp5_h); {
+
+    cp5_shaders.getCaptionLabel().align(CENTER, CENTER);
+
+    cp5.addToggle("shader_set").setPosition(0, cp5_y = 3).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_shaders).getCaptionLabel().align(CENTER, CENTER);
   }
 
   cp5_x = 20;
@@ -408,6 +437,7 @@ void gui() {
     .addItem(cp5_particles)
     .addItem(cp5_part_interaction)
     .addItem(cp5_color)
+    .addItem(cp5_shaders)
     .open();
 }
 
@@ -602,10 +632,17 @@ void particles() {
   }
 
   if (part_birth_circle) {
-    part_streams_circle = 4 * part_streams;
+    float rot = 0;
+    if (part_birth_circle_rot) {
+      part_birth_circle_rot_count++;
+      if (part_birth_circle_rot_count == part_birth_circle_rot_speed) part_birth_circle_rot_count = 0;
+      rot = TWO_PI / part_birth_circle_rot_speed * part_birth_circle_rot_count;
+    }
+
+    int part_streams_circle = 3 * part_streams;
     for (int i = 0; i <= part_streams_circle; i++) {
-      paricles_birth_circle_pos.x = paricles_birth_center_pos.x + part_birth_circle_r * cos((PI * i * 2) / (part_streams_circle));
-      paricles_birth_circle_pos.y = paricles_birth_center_pos.y - part_birth_circle_r * sin((PI * i * 2) / (part_streams_circle));
+      paricles_birth_circle_pos.x = paricles_birth_center_pos.x + part_birth_circle_r * cos((PI * i * 2 + rot) / (part_streams_circle));
+      paricles_birth_circle_pos.y = paricles_birth_center_pos.y - part_birth_circle_r * sin((PI * i * 2 + rot) / (part_streams_circle));
 
       if (i >= 0 && i < part_streams_circle / 3) {
         particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y, part_lifespan, color_a));
@@ -619,6 +656,8 @@ void particles() {
     }
   }
 
+  if (shader_set) filter(blur);
+
   for (int i = 0; i < particles.size(); i++) {
     Particle part = particles.get(i);
     part.clear(part_clear);
@@ -631,6 +670,8 @@ void particles() {
     part.update();
     part.display(part_set);
   }
+
+  resetShader();
 
   cell_calculationload_max = int(sq(particles.size()));
   cell_calculationload = float(int(1000 * float(cell_calculationload_eff) / float(cell_calculationload_max))) / 10;
@@ -716,6 +757,9 @@ void field() {
 
 void data() {
   if (controls_show) {
+    fill(0);
+    rectMode(CORNER);
+    rect(0, 0, field_border_left, height);
     textSize(9);
     fill(255);
     textAlign(LEFT, BOTTOM);
@@ -1142,7 +1186,7 @@ class Particle {
                 part.connected = true;
                 connected = false;
               }
-              if (!connected) {
+              if (!connected && part_set_interaction_line) {
                 strokeWeight(1);
                 stroke(r, g, b, a);
                 line(pos.x, pos.y, part.pos.x, part.pos.y);
