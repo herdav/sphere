@@ -66,9 +66,9 @@ float vctr_dist_factor = 1;
 int vctr_segment_nx = 100, vctr_segment_ny;
 int vctr_segment_n, vctr_segment_n_max = 200;
 
-// PARTICLE CELLS ------------------------------------------------------
-PCell cell;
-ArrayList < PCell > cells;
+// CLUSTER --------------------------------------------------------------
+Cluster cell;
+ArrayList < Cluster > cells;
 PVector cell_segment_pos = new PVector();
 float cell_segment_d, cell_segment_r;
 int cell_segment_nx = 20, cell_segment_ny;
@@ -94,21 +94,21 @@ float part_lifespan_max = 200;
 float part_interaction_d_min = 0;
 float part_interaction_d_max = 30;
 float part_interaction_force = 0;
-float part_extinction_d = 1;
-float part_extinction_l = 1;
+float part_interaction_draw_d_min = 0;
+float part_interaction_draw_d_max = 30;
 float part_speed = 8;
 float part_birth_circle_r;
 float part_distrelated_potency = 0.5;
-float part_decline_factor = 1;
+float part_limitter_factor = 1;
 float part_acceleration_factor = 0;
 boolean part_birth_circle_rot = false;
 boolean part_clear = false;
 boolean part_interaction = false;
-boolean part_set_extinction = false;
+boolean part_interaction_draw = false;
 boolean part_set_interaction = false;
-boolean part_set_interaction_line = true;
+boolean part_set_interaction_draw = true;
 boolean part_set_distrelated = false;
-boolean part_set_decline = false;
+boolean part_set_limitter = false;
 boolean part_set_acceleration = false;
 boolean part_birth_circle = true;
 boolean part_set = true;
@@ -132,15 +132,10 @@ int field_width = field_height;
 int field_border_left, field_border_top, field_border_bot;
 PVector field_center = new PVector();
 
-// SHADER ---------------------------------------------------------------
-PShader blur;
-boolean shader_set = false;
-
 void setup() {
   size(1800, 1000, P2D);
   //fullScreen(P2D);
   blendMode(ADD);
-  blur = loadShader("blur.glsl");
 
   String[] ports = Serial.list();
   if (ports.length == 0) println("No ports found!");
@@ -163,7 +158,7 @@ void setup() {
 
   pointer_targets = new Pointer(field_center.x, field_center.y, field_height / 1.5);
   vectors = new ArrayList < Vectorfield > ();
-  cells = new ArrayList < PCell > ();
+  cells = new ArrayList < Cluster > ();
   particles = new ArrayList < Particle > ();
   targets = new ArrayList < Target > ();
   targets.add(new Target(field_center.x, field_center.y, targt_set_polarisation, targt_set_strength));
@@ -172,12 +167,12 @@ void setup() {
 }
 
 void draw() {
-  if (!shader_set) background(0);
+  background(0);
   control();
   record();
   targets();
   field();
-  cells();
+  cluster();
   particles();
   data();
   endRecord();
@@ -374,8 +369,8 @@ void gui() {
     cp5.addToggle("cell_segment_display").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SHOW").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("cell_set_max_entries", 2, 200, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
 
-    cp5.addToggle("part_set_decline").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_decline_factor", 0, 100, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
+    cp5.addToggle("part_set_limitter").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("part_limitter_factor", 0, 100, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
 
     cp5.addToggle("part_interaction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addRange("part_interaction_range").setGroup(cp5_part_interaction)
@@ -387,17 +382,22 @@ void gui() {
       .setRangeValues(part_interaction_d_min, part_interaction_d_max)
       .setBroadcast(true);
 
-    cp5.addToggle("part_set_interaction_line").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("part_set_interaction_draw").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addRange("part_interaction_draw").setGroup(cp5_part_interaction)
+      .setBroadcast(false)
+      .setPosition(43, cp5_y)
+      .setSize(cp5_w - 43, cp5_h)
+      .setHandleSize(5)
+      .setRange(0, 100)
+      .setRangeValues(part_interaction_draw_d_min, part_interaction_draw_d_max)
+      .setBroadcast(true);
+
 
     cp5.addToggle("part_set_interaction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_interaction_force", -1, 1, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
 
     cp5.addToggle("part_set_distrelated").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_distrelated_potency", 0, 1, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
-
-    cp5.addToggle("part_set_extinction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h * 2 + 4).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_extinction_d", 0, 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
-    cp5.addSlider("part_extinction_l", 0, 2, 43, cp5_y += cp5_hs, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
   }
 
   Group cp5_color = cp5.addGroup("PARTICLES COLOR")
@@ -415,17 +415,6 @@ void gui() {
     cp5.addSlider("background_color", 0, 255, 43, 130, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_color);
   }
 
-  cp5_n = 1;
-  Group cp5_shaders = cp5.addGroup("SHADERS")
-    .setBackgroundColor(50)
-    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
-    .setBarHeight(cp5_h); {
-
-    cp5_shaders.getCaptionLabel().align(CENTER, CENTER);
-
-    cp5.addToggle("shader_set").setPosition(0, cp5_y = 3).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_shaders).getCaptionLabel().align(CENTER, CENTER);
-  }
-
   cp5_x = 20;
   cp5_y = 20;
   cp5.addAccordion("acc").setPosition(cp5_x, cp5_y).setWidth(cp5_w)
@@ -437,7 +426,6 @@ void gui() {
     .addItem(cp5_particles)
     .addItem(cp5_part_interaction)
     .addItem(cp5_color)
-    .addItem(cp5_shaders)
     .open();
 }
 
@@ -454,7 +442,10 @@ void controlEvent(ControlEvent theControlEvent) {
     part_interaction_d_min = int(theControlEvent.getController().getArrayValue(0));
     part_interaction_d_max = int(theControlEvent.getController().getArrayValue(1));
   }
-
+  if (theControlEvent.isFrom("part_interaction_draw")) {
+    part_interaction_draw_d_min = int(theControlEvent.getController().getArrayValue(0));
+    part_interaction_draw_d_max = int(theControlEvent.getController().getArrayValue(1));
+  }
 }
 
 void control() {
@@ -656,8 +647,6 @@ void particles() {
     }
   }
 
-  if (shader_set) filter(blur);
-
   for (int i = 0; i < particles.size(); i++) {
     Particle part = particles.get(i);
     part.clear(part_clear);
@@ -665,13 +654,11 @@ void particles() {
     part.getVector();
     part.getCell(i);
     part.addInteraction(part_interaction);
-    part.colorize(true);
-    part.acceleration();
+    part.addAcceleration();
     part.update();
+    part.colorize(true);
     part.display(part_set);
   }
-
-  resetShader();
 
   cell_calculationload_max = int(sq(particles.size()));
   cell_calculationload = float(int(1000 * float(cell_calculationload_eff) / float(cell_calculationload_max))) / 10;
@@ -682,7 +669,7 @@ void particles() {
   }
 }
 
-void cells() {
+void cluster() {
   cell_segment_ny = cell_segment_nx;
   cell_segment_n = cell_segment_nx * cell_segment_ny;
 
@@ -702,14 +689,14 @@ void cells() {
       for (int j = 0; j < cell_segment_nx; j++) {
         cell_segment_pos.x = field_border_left + j * cell_segment_d + cell_segment_r;
         cell_segment_pos.y = field_border_top + i * cell_segment_d + cell_segment_r;
-        cells.add(new PCell(cell_segment_pos));
+        cells.add(new Cluster(cell_segment_pos));
       }
     }
   }
 
   cell_calculationload_eff = 0;
   for (int i = 0; i < cells.size(); i++) {
-    PCell cell = cells.get(i);
+    Cluster cell = cells.get(i);
     if (cell.list.size() > 0) {
       cell.display(cell_segment_display);
       cell_calculationload_eff += int(sq(cell.list.size()));
@@ -923,12 +910,6 @@ class Target {
   }
 }
 
-float strength(float d, float d_max, float n) {
-  float s = d / d_max;
-  float f = 1 - pow(s, n);
-  return f;
-}
-
 class Vectorfield {
   PVector orgin = new PVector();
   PVector direct = new PVector();
@@ -942,6 +923,12 @@ class Vectorfield {
   Vectorfield(PVector orgin) {
     this.orgin.x = orgin.x;
     this.orgin.y = orgin.y;
+  }
+
+  float strength(float d, float d_max, float n) {
+    float s = d / d_max;
+    float f = 1 - pow(s, n);
+    return f;
   }
 
   void target(PVector target, boolean polarisation, float factor) {
@@ -1026,11 +1013,11 @@ class Vectorfield {
   }
 }
 
-class PCell {
+class Cluster {
   IntList list;
   PVector orgin = new PVector();
 
-  PCell(PVector orgin) {
+  Cluster(PVector orgin) {
     this.orgin.x = orgin.x;
     this.orgin.y = orgin.y;
 
@@ -1043,7 +1030,7 @@ class PCell {
 
   void display(boolean set) {
     if (set) {
-      fill(map(list.size(), 0, particles.size() / 10, 0, 255));
+      fill(map(list.size(), 0, cell_set_max_entries, 0, 255));
       noStroke();
       rectMode(CENTER);
       rect(orgin.x, orgin.y, cell_segment_d, cell_segment_d);
@@ -1073,28 +1060,10 @@ class Particle {
     pos_before = pos.copy();
   }
 
-  void lifespan() {
-    lifespan--;
-    if (pos.x <= vctr_segment_d + field_border_left || pos.x >= width - vctr_segment_d ||
-      pos.y <= field_border_top + vctr_segment_d || pos.y >= height - field_border_bot - vctr_segment_d) {
-      lifespan = 0;
-    }
-  }
-
-  void update() {
-    velocity.setMag(part_speed);
-    pos_before = pos.copy();
-    pos.add(velocity);
-  }
-
-  void acceleration() {
-    if (part_set_acceleration) {
-      PVector aclr = new PVector();
-      PVector.sub(pos, pos_before, aclr);
-      float f = strength(lifespan, lifespan_start, 0.5);
-      aclr.mult(f * part_acceleration_factor);
-      pos.add(aclr);
-    }
+  float strength(float d, float d_max, float n) {
+    float s = d / d_max;
+    float f = 1 - pow(s, n);
+    return f;
   }
 
   void getVector() {
@@ -1115,7 +1084,7 @@ class Particle {
     active_cell = active_cell_y * cell_segment_ny + active_cell_x; // detect active cell
 
     if (active_cell >= 0 && active_cell < cells.size()) {
-      PCell cell = cells.get(active_cell);
+      Cluster cell = cells.get(active_cell);
 
       if (cell.list.size() < cell_set_max_entries) { // set max entries in cell
         cell.list.append(id);
@@ -1164,7 +1133,7 @@ class Particle {
       PVector force = new PVector();
 
       if (active_cell >= 0 && active_cell < cells.size()) {
-        PCell cell = cells.get(active_cell);
+        Cluster cell = cells.get(active_cell);
 
         if (cell.list.size() > 0) {
           for (int i = 0; i < cell.list.size(); i++) {
@@ -1178,33 +1147,54 @@ class Particle {
               f = strength(d, part_interaction_d_max, part_distrelated_potency);
             }
 
-            if (d < part_interaction_d_max && d > part_interaction_d_min) {
-              if (part_set_interaction) {
-                force = dist.setMag(f * part_interaction_force);
-                velocity.add(force);
+            if (d < part_interaction_d_max && d > part_interaction_d_min && part_set_interaction) {
+              force = dist.setMag(f * part_interaction_force);
+              velocity.add(force);
+            }
 
-                part.connected = true;
-                connected = false;
-              }
-              if (!connected && part_set_interaction_line) {
+            if (d < part_interaction_draw_d_max && d > part_interaction_draw_d_min && part_set_interaction_draw) {
+              part.connected = true;
+              connected = false;
+
+              if (!connected) {
                 strokeWeight(1);
                 stroke(r, g, b, a);
                 line(pos.x, pos.y, part.pos.x, part.pos.y);
               }
             }
-
-            if (d < part_extinction_d && part_set_extinction) {
-              lifespan -= part_extinction_l;
-            }
           }
 
-          if (part_set_decline) {
-            float decline = cell.list.size() / cell_set_max_entries;
-            lifespan -= decline * part_decline_factor;
+          if (part_set_limitter) {
+            float limitter = cell.list.size() / cell_set_max_entries;
+            lifespan -= limitter * part_limitter_factor;
           }
         }
       }
     }
+  }
+
+  void addAcceleration() {
+    if (part_set_acceleration) {
+      PVector aclr = new PVector();
+      PVector.sub(pos, pos_before, aclr);
+      float f = strength(lifespan, lifespan_start, 0.5);
+      aclr.mult(f * part_acceleration_factor);
+      pos.add(aclr);
+    }
+  }
+
+  void lifespan() {
+    lifespan--;
+    if (pos.x <= vctr_segment_d + field_border_left || pos.x >= width - vctr_segment_d ||
+      pos.y <= field_border_top + vctr_segment_d || pos.y >= height - field_border_bot - vctr_segment_d) {
+      lifespan = 0;
+    }
+  }
+
+  void update() {
+    velocity.setMag(part_speed);
+    pos_before = pos.copy();
+    pos.add(velocity);
   }
 
   void clear(boolean set) {
