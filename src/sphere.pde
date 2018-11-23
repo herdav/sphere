@@ -3,6 +3,7 @@
     https://davidherren.ch                                              /
     https://github.com/herdav/sphere                                    /
     Licensed under the MIT License.                                     /
+    Built for 4K display.                                               /
     ---------------------------------------------------------------------
 */
 
@@ -43,7 +44,6 @@ int stream_data_fctr = 1000;
 // POINTER --------------------------------------------------------------
 Pointer pointer_yaw, pointer_x_axis, pointer_y_axis, pointer_stp;
 Pointer pointer_targets;
-PVector pointer_rstr = new PVector();
 boolean pointer_control = false;
 
 // TARGETS --------------------------------------------------------------
@@ -53,6 +53,11 @@ boolean targt_removed = false;
 boolean targt_pointer = false;
 boolean targt_mouse = true;
 boolean targt_set_polarisation = true;
+boolean targt_0_pol, targt_1_pol, targt_2_pol;
+float targt_0_x, targt_1_x, targt_2_x;
+float targt_0_y, targt_1_y, targt_2_y;
+float targt_0_strgth = 1, targt_1_strgth, targt_2_strgth;
+float targt_strgth_min = 0.1, targt_strgth_max = 10;
 float targt_set_strength = 1;
 float targt_get_strength;
 
@@ -63,8 +68,8 @@ PVector vctr_segment_pos = new PVector();
 float vctr_segment_d, vctr_segment_r, vctr_dist_max;
 float vctr_segment_delay = 0.03;
 float vctr_dist_factor = 1;
-int vctr_segment_nx = 100, vctr_segment_ny;
-int vctr_segment_n, vctr_segment_n_max = 200;
+int vctr_segment_nx = 200, vctr_segment_ny;
+int vctr_segment_n, vctr_segment_n_max = 400;
 
 // CLUSTER --------------------------------------------------------------
 Cluster cell;
@@ -72,7 +77,7 @@ ArrayList < Cluster > cells;
 PVector cell_segment_pos = new PVector();
 float cell_segment_d, cell_segment_r;
 int cell_segment_nx = 20, cell_segment_ny;
-int cell_segment_n, cell_segment_n_max = 100;
+int cell_segment_n, cell_segment_n_max = 200;
 int cell_set_max_entries = 100;
 int cell_calculationload_max, cell_calculationload_eff;
 float cell_calculationload;
@@ -82,21 +87,22 @@ boolean cell_segment_display = false;
 Particle part;
 ArrayList < Particle > particles;
 int part_size = 1;
-int part_streams = 20;
+int part_streams = 10;
 int part_saturation_min = 0;
 int part_saturation_max = 255;
 int part_saturation_min_limit = 0;
 int part_saturation_max_limit = 255;
 int part_birth_circle_rot_count = 0;
+int part_lines_count = 0;
 float part_birth_circle_rot_speed = 60;
-float part_lifespan = 40;
-float part_lifespan_max = 200;
+float part_lifespan = 80;
+float part_lifespan_max = 400;
 float part_interaction_d_min = 0;
-float part_interaction_d_max = 30;
+float part_interaction_d_max = 60;
 float part_interaction_force = 0;
 float part_interaction_draw_d_min = 0;
-float part_interaction_draw_d_max = 30;
-float part_speed = 8;
+float part_interaction_draw_d_max = 60;
+float part_speed = 14;
 float part_birth_circle_r;
 float part_distrelated_potency = 0.5;
 float part_limitter_factor = 1;
@@ -112,8 +118,10 @@ boolean part_set_limitter = false;
 boolean part_set_acceleration = false;
 boolean part_birth_circle = true;
 boolean part_set = true;
+boolean paricles_birth_center_pos_gui;
 PVector paricles_birth_circle_pos = new PVector();
 PVector paricles_birth_center_pos = new PVector();
+float paricles_birth_center_pos_x, paricles_birth_center_pos_y;
 
 // GUI & CONTROLS -------------------------------------------------------
 ControlP5 cp5;
@@ -127,14 +135,15 @@ boolean move_target = false, move_particles = false;
 int load_preset_last = 0;
 int background_color = 0;
 int theme = 0;
-int field_height = 1000;
+int field_height = 2000;
 int field_width = field_height;
 int field_border_left, field_border_top, field_border_bot;
+int textSize = 20;
 PVector field_center = new PVector();
 
 void setup() {
-  size(1800, 1000, P2D);
-  //fullScreen(P2D);
+  //size(3800, 2000, P2D);
+  fullScreen(P2D);
   blendMode(ADD);
 
   String[] ports = Serial.list();
@@ -149,12 +158,12 @@ void setup() {
 
   fieldsize();
 
-  pointer_rstr.x = 600;
-  pointer_rstr.y = 180;
-  pointer_x_axis = new Pointer(pointer_rstr.x, 120, pointer_rstr.y);
-  pointer_y_axis = new Pointer(pointer_rstr.x, 360, pointer_rstr.y);
-  pointer_yaw = new Pointer(pointer_rstr.x, 600, pointer_rstr.y);
-  pointer_stp = new Pointer(pointer_rstr.x, 600, pointer_rstr.y);
+  int pointer_x = 1300;
+  int pointer_d = 320;
+  pointer_x_axis = new Pointer(pointer_x, 250, pointer_d);
+  pointer_y_axis = new Pointer(pointer_x, 650, pointer_d);
+  pointer_yaw = new Pointer(pointer_x, 1050, pointer_d);
+  pointer_stp = new Pointer(pointer_x, 1050, pointer_d);
 
   pointer_targets = new Pointer(field_center.x, field_center.y, field_height / 1.5);
   vectors = new ArrayList < Vectorfield > ();
@@ -247,56 +256,86 @@ void fieldsize() {
 }
 
 void gui() {
-  int cp5_w = 320;
-  int cp5_h = 14;
-  int cp5_s = 4;
+  int cp5_w = 620, cp5_h = 30;
+  int cp5_s1 = 2, cp5_s2 = 4, cp5_s3 = 10;
+  int cp5_l0 = 80, cp5_l1 = 83, cp5_l2;
   int cp5_x, cp5_y;
-  int cp5_hs = cp5_h + cp5_s;
-  int cp5_n;
+  int cp5_hs = cp5_h + cp5_s1, cp5_n;
 
   cp5 = new ControlP5(this);
+
+  PFont p = createFont("", textSize);
+  ControlFont font = new ControlFont(p);
+  cp5.setFont(font);
+
   cp5.setColorBackground(color(50))
     .setColorForeground(color(100))
     .setColorActive(color(150));
 
   cp5_n = 3;
-  Group cp5_system = cp5.addGroup("SYSTEM")
+  cp5_l2 = (cp5_w - 1 * cp5_s1) / 2;
+  Group cp5_s1ystem = cp5.addGroup("SYSTEM")
     .setBackgroundColor(50)
-    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
+    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s1)
     .setBarHeight(cp5_h); {
 
-    cp5_system.getCaptionLabel().align(CENTER, CENTER);
+    cp5_s1ystem.getCaptionLabel().align(CENTER, CENTER);
 
-    cp5.addToggle("pointer_control").setPosition(0, cp5_y = 3).setSize(110, cp5_h).setGroup(cp5_system).setCaptionLabel("DEVICE CONTROL DISPLAY").getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("targt_pointer").setPosition(0, cp5_y += cp5_hs).setSize(110, cp5_h).setGroup(cp5_system).setCaptionLabel("SET DEVICE AS TARGET").getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("stream_data_serial_print").setPosition(0, cp5_y += cp5_hs).setSize(110, cp5_h).setCaptionLabel("SERIAL PRINT DEVICE DATA").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("targt_display").setPosition(cp5_w - 113, cp5_y = 3).setSize(110, cp5_h).setValue(true).setCaptionLabel("TARGETS DISPLAY").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("part_clear").setPosition(cp5_w - 113, cp5_y += cp5_hs).setSize(110, cp5_h).setCaptionLabel("PARTICLES CLEAR").setGroup(cp5_system).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("pointer_control").setPosition(0, cp5_y = cp5_s2).setSize(cp5_l2, cp5_h).setGroup(cp5_s1ystem).setCaptionLabel("DEVICE CONTROL DISPLAY").getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("targt_pointer").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l2, cp5_h).setGroup(cp5_s1ystem).setCaptionLabel("SET DEVICE AS TARGET").getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("stream_data_serial_print").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l2, cp5_h).setCaptionLabel("SERIAL PRINT DEVICE DATA").setGroup(cp5_s1ystem).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("targt_display").setPosition(cp5_w - cp5_l2, cp5_y = cp5_s2).setSize(cp5_l2, cp5_h).setValue(true).setCaptionLabel("TARGETS DISPLAY").setGroup(cp5_s1ystem).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("part_clear").setPosition(cp5_w - cp5_l2, cp5_y += cp5_hs).setSize(cp5_l2, cp5_h).setCaptionLabel("PARTICLES CLEAR").setGroup(cp5_s1ystem).getCaptionLabel().align(CENTER, CENTER);
   }
 
   cp5_n = 1;
+  cp5_l2 = (cp5_w - 3 * cp5_s1) / 4;
   Group cp5_presets = cp5.addGroup("PRESETS")
     .setBackgroundColor(50)
     .setBarHeight(cp5_h)
-    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s); {
+    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s1); {
 
     cp5_presets.getCaptionLabel().align(CENTER, CENTER);
 
-    cp5.addBang("load_preset_0").setPosition(cp5_x = 0, cp5_y = 3).setSize(78, cp5_h).setGroup(cp5_presets).setCaptionLabel("DEFAULT").getCaptionLabel().align(CENTER, CENTER);
-    cp5.addBang("load_preset_1").setPosition(cp5_x += 81, cp5_y).setSize(78, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 1").getCaptionLabel().align(CENTER, CENTER);
-    cp5.addBang("load_preset_2").setPosition(cp5_x += 81, cp5_y).setSize(78, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 2").getCaptionLabel().align(CENTER, CENTER);
-    cp5.addBang("load_preset_3").setPosition(cp5_x += 81, cp5_y).setSize(77, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 3").getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_0").setPosition(cp5_x = 0, cp5_y = cp5_s2).setSize(cp5_l2, cp5_h).setGroup(cp5_presets).setCaptionLabel("DEFAULT").getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_1").setPosition(cp5_x += cp5_l2 + cp5_s1, cp5_y).setSize(cp5_l2, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 1").getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_2").setPosition(cp5_x += cp5_l2 + cp5_s1, cp5_y).setSize(cp5_l2, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 2").getCaptionLabel().align(CENTER, CENTER);
+    cp5.addBang("load_preset_3").setPosition(cp5_x += cp5_l2 + cp5_s1, cp5_y).setSize(cp5_l2, cp5_h).setGroup(cp5_presets).setCaptionLabel("PRESET 3").getCaptionLabel().align(CENTER, CENTER);
+  }
+
+  cp5_n = 9;
+  Group cp5_targets = cp5.addGroup("TARGETS")
+    .setBackgroundColor(50)
+    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s1)
+    .setBarHeight(cp5_h); {
+
+    cp5_targets.getCaptionLabel().align(CENTER, CENTER);
+
+    cp5.addToggle("targt_0_pol").setValue(true).setMode(ControlP5.SWITCH).setColorActive(color(100)).setPosition(0, cp5_y = cp5_s2).setSize(cp5_l0, cp5_h).setCaptionLabel("").setGroup(cp5_targets).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("targt_0_strgth", targt_strgth_min, targt_strgth_max, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_targets);
+    cp5.addSlider("targt_0_x", 0, field_width, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_targets);
+    cp5.addSlider("targt_0_y", 0, field_height, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_targets);
+
+    cp5.addToggle("targt_1_pol").setMode(ControlP5.SWITCH).setColorActive(color(100)).setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h).setCaptionLabel("").setGroup(cp5_targets).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("targt_1_strgth", targt_strgth_min, targt_strgth_max, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_targets);
+    cp5.addSlider("targt_1_x", 0, field_width, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_targets);
+    cp5.addSlider("targt_1_y", 0, field_height, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_targets);
+
+    cp5.addToggle("targt_2_pol").setMode(ControlP5.SWITCH).setColorActive(color(100)).setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h).setCaptionLabel("").setGroup(cp5_targets).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("targt_2_strgth", targt_strgth_min, targt_strgth_max, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_targets);
+    cp5.addSlider("targt_2_x", 0, field_width, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_targets);
+    cp5.addSlider("targt_2_y", 0, field_height, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_targets);
   }
 
   cp5_n = 4;
   Group cp5_vectorfield = cp5.addGroup("VECTORFIELD")
     .setBackgroundColor(50)
-    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
+    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s1)
     .setBarHeight(cp5_h); {
 
     cp5.addButtonBar("theme")
       .setGroup(cp5_vectorfield)
-      .setPosition(0, cp5_y = 3)
+      .setPosition(0, cp5_y = cp5_s2)
       .setSize(cp5_w, cp5_h)
       .addItems(split("PS VS LD HM FL", " "))
       .onMove(new CallbackListener() {
@@ -312,35 +351,38 @@ void gui() {
     cp5.addSlider("vctr_dist_factor", 0, 10, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
   }
 
-  cp5_n = 9;
+  cp5_n = 11;
   Group cp5_particles = cp5.addGroup("PARTICLES")
     .setBackgroundColor(50)
-    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
+    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s1)
     .setBarHeight(cp5_h); {
 
     cp5_particles.getCaptionLabel().align(CENTER, CENTER);
 
-    cp5.addToggle("part_birth_circle").setPosition(0, cp5_y = 3).setSize(40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_birth_circle_r", 1, field_height / 2, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles).setValue(field_height * 0.45);
+    cp5.addToggle("part_birth_circle").setPosition(0, cp5_y = cp5_s2).setSize(cp5_l0, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("part_birth_circle_r", 1, field_height / 2, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles).setValue(field_height * 0.45);
+    cp5.addToggle("paricles_birth_center_pos_gui").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h * 2 + cp5_s1).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("paricles_birth_center_pos_x", 0, width, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
+    cp5.addSlider("paricles_birth_center_pos_y", 0, height, cp5_l1, cp5_y += cp5_hs, cp5_w - cp5_l1, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
 
-    cp5.addToggle("part_birth_circle_rot").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_birth_circle_rot_speed", 120, 1, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles).setValue(field_height * 0.45);
+    cp5.addToggle("part_birth_circle_rot").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("part_birth_circle_rot_speed", 120, 1, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles).setValue(field_height * 0.45);
 
-    cp5.addToggle("part_set").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_size", 1, 20, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
+    cp5.addToggle("part_set").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h).setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("part_size", 1, 20, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
 
     cp5.addSlider("part_streams", 1, 200, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
     cp5.addSlider("part_lifespan", 1, part_lifespan_max, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
     cp5.addSlider("part_speed", -2, 40, 0, cp5_y += cp5_hs, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
 
-    cp5.addToggle("part_set_acceleration").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_acceleration_factor", -2, 2, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
+    cp5.addToggle("part_set_acceleration").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h).setCaptionLabel("SET").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("part_acceleration_factor", -2, 2, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
 
     cp5.addRange("part_saturation_scope").setGroup(cp5_particles)
       .setBroadcast(false)
       .setPosition(0, cp5_y += cp5_hs)
       .setSize(cp5_w, cp5_h)
-      .setHandleSize(5)
+      .setHandleSize(cp5_s3)
       .setRange(0, 255)
       .setRangeValues(part_saturation_min, part_saturation_max)
       .setBroadcast(true);
@@ -349,70 +391,70 @@ void gui() {
       .setBroadcast(false)
       .setPosition(0, cp5_y += cp5_hs)
       .setSize(cp5_w, cp5_h)
-      .setHandleSize(5)
+      .setHandleSize(cp5_s3)
       .setRange(0, 255)
       .setRangeValues(part_saturation_min, part_saturation_max)
       .setBroadcast(true);
   }
 
-  cp5_n = 9;
+  cp5_n = 7;
   Group cp5_part_interaction = cp5.addGroup("PARTICLES INTERACTION")
     .setBackgroundColor(50)
-    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s)
+    .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s1)
     .setBarHeight(cp5_h); {
 
     cp5_part_interaction.getCaptionLabel().align(CENTER, CENTER);
     cp5_vectorfield.getCaptionLabel().align(CENTER, CENTER);
 
-    cp5.addSlider("cell_segment_nx", 8, cell_segment_n_max, 0, cp5_y = 3, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
+    cp5.addSlider("cell_segment_nx", 8, cell_segment_n_max, 0, cp5_y = cp5_s2, cp5_w, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
 
-    cp5.addToggle("cell_segment_display").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SHOW").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("cell_set_max_entries", 2, 200, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
+    cp5.addToggle("cell_segment_display").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h).setCaptionLabel("SHOW").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("cell_set_max_entries", 2, 200, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
 
-    cp5.addToggle("part_set_limitter").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_limitter_factor", 0, 100, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
+    cp5.addToggle("part_set_limitter").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("part_limitter_factor", 0, 100, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
 
-    cp5.addToggle("part_interaction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("part_interaction").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addRange("part_interaction_range").setGroup(cp5_part_interaction)
       .setBroadcast(false)
-      .setPosition(43, cp5_y)
-      .setSize(cp5_w - 43, cp5_h)
-      .setHandleSize(5)
+      .setPosition(cp5_l1, cp5_y)
+      .setSize(cp5_w - cp5_l1, cp5_h)
+      .setHandleSize(cp5_s3)
       .setRange(0, 100)
       .setRangeValues(part_interaction_d_min, part_interaction_d_max)
       .setBroadcast(true);
 
-    cp5.addToggle("part_set_interaction_draw").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addToggle("part_set_interaction_draw").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addRange("part_interaction_draw").setGroup(cp5_part_interaction)
       .setBroadcast(false)
-      .setPosition(43, cp5_y)
-      .setSize(cp5_w - 43, cp5_h)
-      .setHandleSize(5)
+      .setPosition(cp5_l1, cp5_y)
+      .setSize(cp5_w - cp5_l1, cp5_h)
+      .setHandleSize(cp5_s3)
       .setRange(0, 100)
       .setRangeValues(part_interaction_draw_d_min, part_interaction_draw_d_max)
       .setBroadcast(true);
 
+    cp5.addToggle("part_set_interaction").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("part_interaction_force", -1, 1, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
 
-    cp5.addToggle("part_set_interaction").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_interaction_force", -1, 1, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
-
-    cp5.addToggle("part_set_distrelated").setPosition(0, cp5_y += cp5_hs).setSize(40, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_distrelated_potency", 0, 1, 43, cp5_y, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
+    cp5.addToggle("part_set_distrelated").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h).setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("part_distrelated_potency", 0, 1, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
   }
 
+  int s = (cp5_w - 20) / 3;
   Group cp5_color = cp5.addGroup("PARTICLES COLOR")
     .setBackgroundColor(50)
     .setBarHeight(cp5_h)
-    .setBackgroundHeight(147); {
+    .setBackgroundHeight(s + 50); {
 
     cp5_color.getCaptionLabel().align(CENTER, CENTER);
 
-    cp5.addColorWheel("color_a", 0, 10, 100).setRGB(color(255, 0, 0)).setCaptionLabel("LEFT").setGroup(cp5_color);
-    cp5.addColorWheel("color_b", 110, 10, 100).setRGB(color(0, 255, 0)).setCaptionLabel("RIGHT").setGroup(cp5_color);
-    cp5.addColorWheel("color_c", 220, 10, 100).setRGB(color(0, 0, 255)).setCaptionLabel("TOP").setGroup(cp5_color);
+    cp5.addColorWheel("color_a", 0, 10, s).setRGB(color(255, 0, 0)).setCaptionLabel("LEFT").setGroup(cp5_color);
+    cp5.addColorWheel("color_b", s + 10, 10, s).setRGB(color(0, 255, 0)).setCaptionLabel("RIGHT").setGroup(cp5_color);
+    cp5.addColorWheel("color_c", cp5_y = 2 * s + 20, 10, s).setRGB(color(0, 0, 255)).setCaptionLabel("TOP").setGroup(cp5_color);
 
-    cp5.addToggle("background_display").setPosition(0, 130).setSize(40, cp5_h).setCaptionLabel("set").setGroup(cp5_color).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("background_color", 0, 255, 43, 130, cp5_w - 43, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_color);
+    cp5.addToggle("background_display").setPosition(0, s = s + 50).setSize(cp5_l0, cp5_h).setCaptionLabel("set").setGroup(cp5_color).getCaptionLabel().align(CENTER, CENTER);
+    cp5.addSlider("background_color", 0, 255, cp5_l1, s, cp5_w - cp5_l1, cp5_h).setSliderMode(Slider.FLEXIBLE).setGroup(cp5_color);
   }
 
   cp5_x = 20;
@@ -420,8 +462,9 @@ void gui() {
   cp5.addAccordion("acc").setPosition(cp5_x, cp5_y).setWidth(cp5_w)
     .setCollapseMode(Accordion.MULTI)
     .setMinItemHeight(0)
-    .addItem(cp5_system)
+    .addItem(cp5_s1ystem)
     .addItem(cp5_presets)
+    .addItem(cp5_targets)
     .addItem(cp5_vectorfield)
     .addItem(cp5_particles)
     .addItem(cp5_part_interaction)
@@ -513,10 +556,10 @@ void targets() {
     targt_set_polarisation = false;
   } else targt_set_polarisation = true;
 
-  if (keyPressed && key == 'u' && targt_set_strength <= 2) { // add strength to the current target
+  if (keyPressed && key == 'u' && targt_set_strength <= targt_strgth_max) { // add strength to the current target
     targt_set_strength += 0.1;
   }
-  if (keyPressed && key == 't' && targt_set_strength >= 0.5) { // sub strength from the current target
+  if (keyPressed && key == 't' && targt_set_strength >= targt_strgth_min) { // sub strength from the current target
     targt_set_strength -= 0.1;
   }
 
@@ -525,25 +568,60 @@ void targets() {
   } else targt_mouse = true;
 
   int n = targets.size() - 1; // last target set
+  Target targt = targets.get(n);
 
   if (targt_mouse) { // if target controlled by mouse
     if (mouseX >= field_border_left && mouseY >= field_border_top && mouseY <= height - field_border_bot) { // if mouse on the field
       if (targt_removed) {
-        targets.get(n).update(mouseX, mouseY);
-        targets.get(n).polarisation(targt_set_polarisation);
-        targets.get(n).strength(targt_set_strength);
+        targt.update(mouseX, mouseY);
+        targt.polarisation(targt_set_polarisation);
+        targt.strength(targt_set_strength);
         for (int i = 0; i < targets.size(); i++) targets.get(i).select(false);
         targt_removed = false;
       } else {
-        targets.get(n).update(mouseX, mouseY);
-        targets.get(n).polarisation(targt_set_polarisation);
-        targets.get(n).strength(targt_set_strength);
+        targt.update(mouseX, mouseY);
+        targt.polarisation(targt_set_polarisation);
+        targt.strength(targt_set_strength);
+      }
+      for (int i = 0; i < targets.size(); i++) {
+        targt = targets.get(i);
+        if (i < 3) { // update pos of the first three targets in the gui
+          cp5.getController("targt_" + i + "_pol").setValue(int(targt.pol));
+          cp5.getController("targt_" + i + "_x").setValue(targt.pos.x - field_border_left);
+          cp5.getController("targt_" + i + "_y").setValue(targt.pos.y - field_border_top);
+          cp5.getController("targt_" + i + "_strgth").setValue(targt.strgth);
+        }
       }
     }
     if (mouseX < field_border_left || mouseY < field_border_top || mouseY > height - field_border_bot) { // if mouse leaves the field
       targt_set_strength = 1;
-      if (targets.size() == 1 && targets.get(n).pos.x < field_border_left + 20) {
-        targets.get(n).update(field_center.x, field_center.y);
+
+      for (int i = 0; i < targets.size(); i++) {
+        targt = targets.get(i);
+        if (i < 3) { // update pos of the first three targets from the gui
+          if (i == 0) {
+            if (targt_0_pol != targt.pol) targt.polarisation(targt_0_pol);
+            if (targt_0_x != targt.pos.x - field_border_left || targt_0_y != targt.pos.y - field_border_top) targt.update(targt_0_x + field_border_left, targt_0_y + field_border_top);
+            if (targt_0_strgth != targt.strgth) targt.strength(targt_0_strgth);
+          }
+          if (i == 1) {
+            if (targt_1_pol != targt.pol) targt.polarisation(targt_1_pol);
+            if (targt_1_x != targt.pos.x - field_border_left || targt_1_y != targt.pos.y - field_border_top) targt.update(targt_1_x + field_border_left, targt_1_y + field_border_top);
+            if (targt_1_strgth != targt.strgth) targt.strength(targt_1_strgth);
+          }
+          if (i == 2) {
+            if (targt_2_pol != targt.pol) targt.polarisation(targt_2_pol);
+            if (targt_2_x != targt.pos.x - field_border_left || targt_2_y != targt.pos.y - field_border_top) targt.update(targt_2_x + field_border_left, targt_2_y + field_border_top);
+            if (targt_2_strgth != targt.strgth) targt.strength(targt_2_strgth);
+          }
+        }
+      }
+
+      if (targets.size() == 1 && targt.pos.x < field_border_left + 100) {
+        targt.update(field_center.x, field_center.y);
+        cp5.getController("targt_0_x").setValue(targt.pos.x - field_border_left);
+        cp5.getController("targt_0_y").setValue(targt.pos.y - field_border_top);
+        cp5.getController("targt_0_strgth").setValue(targt.strgth);
       }
       if (targets.size() > 1 && !targt_removed) {
         targets.remove(n);
@@ -554,34 +632,40 @@ void targets() {
 
   if (targt_pointer && stream_port_on) { // if target contolled by device
     pointer_targets.calculation(stream_data_angle_rot, stream_data_magni_u);
-    targets.get(n).update(pointer_targets.magnitude.x, pointer_targets.magnitude.y);
+    targt.update(pointer_targets.magnitude.x, pointer_targets.magnitude.y);
   }
 
   targt_get_strength = 0;
   for (int i = 0; i < targets.size(); i++) {
-    targets.get(i).display(targt_display);
-    targt_get_strength += targets.get(i).strgth; // add all strengths
+    targt = targets.get(i);
+
+    targt.display(targt_display);
+    targt_get_strength += targt.strgth; // add all strengths
 
     if (keyPressed) {
       if (key >= 49) { // select target
         if (key == i + 49) {
-          targets.get(i).select(true);
+          targt.select(true);
         } else if (key >= 49 && key <= 49 + targets.size()) {
-          targets.get(i).select(false);
+          targt.select(false);
         }
       }
       if (targets.get(i).sel) { // change selected target
-        if (key == 'u' && targets.get(i).strgth <= 10) {
-          targets.get(i).strgth += 0.05;
+        if (key == 'u' && targets.get(i).strgth <= targt_strgth_max) {
+          targt.strgth += 0.1;
+          if (i < 3) cp5.getController("targt_" + i + "_strgth").setValue(targt.strgth);
         }
-        if (key == 't' && targets.get(i).strgth >= 0.1) {
-          targets.get(i).strgth -= 0.05;
+        if (key == 't' && targets.get(i).strgth >= targt_strgth_min) {
+          targt.strgth -= 0.1;
+          if (i < 3) cp5.getController("targt_" + i + "_strgth").setValue(targt.strgth);
         }
         if (key == 'z') {
           if (targets.get(i).pol == false) {
-            targets.get(i).pol = true;
+            targt.pol = true;
+            if (i < 3) cp5.getController("targt_" + i + "_pol").setValue(int(targt.pol));
           } else if (targets.get(i).pol == true) {
-            targets.get(i).pol = false;
+            targt.pol = false;
+            if (i < 3) cp5.getController("targt_" + i + "_pol").setValue(int(targt.pol));
           }
         }
         if (key == '.') {
@@ -591,16 +675,20 @@ void targets() {
         if (move_target) {
           move_particles = false;
           if (keyCode == UP) {
-            targets.get(i).pos.y -= 1;
+            targt.pos.y -= 1;
+            if (i < 3) cp5.getController("targt_" + i + "_y").setValue(targt.pos.y - field_border_top);
           }
           if (keyCode == DOWN) {
-            targets.get(i).pos.y += 1;
+            targt.pos.y += 1;
+            if (i < 3) cp5.getController("targt_" + i + "_y").setValue(targt.pos.y - field_border_top);
           }
           if (keyCode == LEFT) {
-            targets.get(i).pos.x -= 1;
+            targt.pos.x -= 1;
+            if (i < 3) cp5.getController("targt_" + i + "_x").setValue(targt.pos.x - field_border_left);
           }
           if (keyCode == RIGHT) {
-            targets.get(i).pos.x += 1;
+            targt.pos.x += 1;
+            if (i < 3) cp5.getController("targt_" + i + "_x").setValue(targt.pos.x - field_border_left);
           }
         }
       }
@@ -611,7 +699,7 @@ void targets() {
 
 void particles() {
   if (keyPressed) {
-    if (key == 'i') move_particles = true; // move center of particlesbirth
+    if (key == 'i') move_particles = true; // move center of particlesbirth by buttons
     if (move_particles) {
       move_target = false;
       if (keyCode == UP) paricles_birth_center_pos.y -= 1;
@@ -621,6 +709,13 @@ void particles() {
       if (key == '.') paricles_birth_center_pos = field_center.copy();
     }
   }
+
+  if (paricles_birth_center_pos_gui) { // move center of particlesbirth by gui 
+    paricles_birth_center_pos.x = paricles_birth_center_pos_x;
+    paricles_birth_center_pos.y = paricles_birth_center_pos_y;
+  }
+  cp5.getController("paricles_birth_center_pos_x").setValue(paricles_birth_center_pos.x);
+  cp5.getController("paricles_birth_center_pos_y").setValue(paricles_birth_center_pos.y);
 
   if (part_birth_circle) {
     float rot = 0;
@@ -646,6 +741,8 @@ void particles() {
       }
     }
   }
+
+  part_lines_count = 0;
 
   for (int i = 0; i < particles.size(); i++) {
     Particle part = particles.get(i);
@@ -747,7 +844,7 @@ void data() {
     fill(0);
     rectMode(CORNER);
     rect(0, 0, field_border_left, height);
-    textSize(9);
+    textSize(textSize);
     fill(255);
     textAlign(LEFT, BOTTOM);
     text("FPS\n" + "VECTORS\n" + "PARTICLES\n" + "CELLS\n" + "INTERACTION\n" + "DIST\n" + "TARGETS\n" +
@@ -758,12 +855,13 @@ void data() {
       vectors.size() + "\n" +
       particles.size() + "\n" +
       cells.size() + "\n" +
-      cell_calculationload + "%\n" +
+      part_lines_count + " (" +
+      cell_calculationload + "%)\n" +
       "P" + int(part_interaction_d_max) + " / C" + int(cell_segment_d) + "\n" +
       targets.size() + "\n" +
       load_preset_last + " is loaded\n" +
       stream_port_name + "\n\n" +
-      hour() + ':' + minute() + ':' + second() + "\n\nsphere.pde", 100, height - 20);
+      hour() + ':' + minute() + ':' + second() + "\n\nsphere.pde", 200, height - 20);
   }
 }
 
@@ -853,7 +951,7 @@ class Pointer {
   }
 
   void title(String t) {
-    textSize(9);
+    textSize(textSize);
     fill(255);
     textAlign(CENTER, CENTER);
     text(t + ": " + float(int(10 * a * 180 / PI)) / 10 + '°', orgin.x, orgin.y + r + r / 5);
@@ -970,9 +1068,6 @@ class Vectorfield {
     switch (input) {
       case 1: // vector field
         noFill();
-        /*stroke(c);
-        line(orgin.x, orgin.y, direct.x, direct.y);
-        line(direct.x, direct.y, result.x, result.y);*/
         stroke(255);
         line(orgin.x, orgin.y, result.x, result.y);
         break;
@@ -1160,6 +1255,7 @@ class Particle {
                 strokeWeight(1);
                 stroke(r, g, b, a);
                 line(pos.x, pos.y, part.pos.x, part.pos.y);
+                part_lines_count++;
               }
             }
           }
