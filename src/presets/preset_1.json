@@ -1,93 +1,181 @@
 {
-  "/particles_extinction_d": {
-    "min": 0,
-    "max": 20,
-    "value": 1
+  "/part_saturation_scope": {
+    "lowValue": 84.1500015258789,
+    "highValue": 255
   },
-  "/particles_pulse": {"value": 0},
-  "/particles_birth_circle": {"value": 1},
-  "/particles_speed": {
-    "min": -2,
-    "max": 40,
-    "value": 8
+  "/targt_2_pol": {"value": 1},
+  "/targt_1_x": {
+    "min": 0,
+    "max": 2000,
+    "value": 942
   },
   "/color_a": {"arrayValue": []},
-  "/vectorfield_segment_nx": {
-    "min": 5,
-    "max": 300,
-    "value": 50
-  },
   "/color_b": {"arrayValue": []},
+  "/targt_display": {"value": 0},
+  "/targt_1_y": {
+    "min": 0,
+    "max": 2000,
+    "value": 1909
+  },
   "/color_c": {"arrayValue": []},
-  "/particles_streams": {
-    "min": 1,
-    "max": 200,
-    "value": 10
+  "/part_interaction_force": {
+    "min": -10,
+    "max": 10,
+    "value": -0.3017082214355469
   },
-  "/particles_size": {
-    "min": 1,
-    "max": 20,
-    "value": 6.4485297203063965
+  "/pointer_control": {"value": 0},
+  "/part_set_limitter": {"value": 1},
+  "/part_clear": {"value": 0},
+  "/background_display": {"value": 1},
+  "/part_speed": {
+    "min": -2,
+    "max": 40,
+    "value": 20.721311569213867
   },
-  "/particles_lifespan": {
-    "min": 1,
+  "/part_interaction_range": {
+    "lowValue": 0,
+    "highValue": 45.3441276550293
+  },
+  "/part_interaction_border": {
+    "min": 0,
+    "max": 100,
+    "value": 35.48387145996094
+  },
+  "/stream_data_serial_print": {"value": 0},
+  "/vctr_dist_factor": {
+    "min": 0,
+    "max": 10,
+    "value": 1.8688524961471558
+  },
+  "/part_set": {"value": 0},
+  "/cell_segment_display": {"value": 0},
+  "/part_set_acceleration": {"value": 1},
+  "/cell_segment_nx": {
+    "min": 8,
     "max": 200,
     "value": 40
   },
-  "/particles_extinction_l": {
-    "min": 0,
-    "max": 3,
+  "/part_acceleration_factor": {
+    "min": -2,
+    "max": 2,
+    "value": -1.0664136409759521
+  },
+  "/cell_set_max_entries": {
+    "min": 2,
+    "max": 200,
+    "value": 81.65084838867188
+  },
+  "/targt_0_strgth": {
+    "min": 0.10000000149011612,
+    "max": 10,
     "value": 1
   },
-  "/particles_birth_square": {"value": 0},
-  "/particles_pull": {"value": 0},
-  "/particles_birth_circle_r": {
-    "min": 1,
-    "max": 480,
-    "value": 480
+  "/part_birth_circle": {"value": 1},
+  "/targt_0_x": {
+    "min": 0,
+    "max": 2000,
+    "value": 533
   },
-  "/PARTICLES_INTERACTION_RANGE": {
-    "lowValue": 4.868913650512695,
-    "highValue": 29.96254539489746
+  "/part_birth_circle_rot_speed": {
+    "min": 120,
+    "max": 1,
+    "value": 96.51612854003906
   },
-  "/targets_pointer": {"value": 0},
-  "/particles_birth_square_d": {
-    "min": 1,
-    "max": 480,
-    "value": 480
+  "/targt_0_y": {
+    "min": 0,
+    "max": 2000,
+    "value": 1245
   },
-  "/pointer_control": {"value": 0},
-  "/particles_set_interaction": {"value": 0},
+  "/targt_2_x": {
+    "min": 0,
+    "max": 2000,
+    "value": 1527
+  },
+  "/targt_2_strgth": {
+    "min": 0.10000000149011612,
+    "max": 10,
+    "value": 0.7999999523162842
+  },
+  "/paricles_birth_center_pos_gui": {"value": 1},
+  "/targt_1_strgth": {
+    "min": 0.10000000149011612,
+    "max": 10,
+    "value": 0.5999999046325684
+  },
+  "/part_saturation_limit": {
+    "lowValue": 0,
+    "highValue": 93.5
+  },
+  "/part_set_distrelated": {"value": 1},
+  "/part_set_interaction": {"value": 1},
   "/background_color": {
     "min": 0,
     "max": 255,
-    "value": 0
+    "value": 30
   },
-  "/vectorfield_segment_delay": {
+  "/targt_2_y": {
+    "min": 0,
+    "max": 2000,
+    "value": 637
+  },
+  "/part_size": {
+    "min": 1,
+    "max": 20,
+    "value": 4.4611005783081055
+  },
+  "/part_interaction_draw": {
+    "lowValue": 8.30115795135498,
+    "highValue": 54.24710464477539
+  },
+  "/part_lifespan": {
+    "min": 1,
+    "max": 400,
+    "value": 269.1803283691406
+  },
+  "/vctr_segment_nx": {
+    "min": 5,
+    "max": 400,
+    "value": 200
+  },
+  "/part_streams": {
+    "min": 1,
+    "max": 200,
+    "value": 10.134427070617676
+  },
+  "/targt_0_pol": {"value": 1},
+  "/part_distrelated_potency": {
+    "min": 0,
+    "max": 1,
+    "value": 0.5009487867355347
+  },
+  "/part_limitter_factor": {
+    "min": 0,
+    "max": 100,
+    "value": 12.878787994384766
+  },
+  "/part_interaction": {"value": 1},
+  "/part_set_interaction_draw": {"value": 1},
+  "/targt_1_pol": {"value": 0},
+  "/targt_pointer": {"value": 0},
+  "/part_birth_circle_rot": {"value": 0},
+  "/vctr_segment_delay": {
     "min": 0.009999999776482582,
     "max": 0.20000000298023224,
     "value": 0.029999999329447746
   },
-  "/particles_set": {"value": 1},
-  "/background_display": {"value": 1},
-  "/particles_set_extinction": {"value": 0},
-  "/stream_data_serial_print": {"value": 0},
-  "/particles_calculate": {"value": 1},
-  "/particles_noise": {"value": 0},
-  "/particles_interaction_force": {
-    "min": -0.5,
-    "max": 0.5,
-    "value": 0
+  "/paricles_birth_center_pos_x": {
+    "min": 0,
+    "max": 3840,
+    "value": 2594.003662109375
   },
-  "/particles_interaction": {"value": 0},
-  "/targets_display": {"value": 1},
-  "/particles_freeze": {"value": 0},
-  "/PARTICLES_SATURATION_SCOPE": {
-    "lowValue": 0,
-    "highValue": 255
+  "/part_birth_circle_r": {
+    "min": 1,
+    "max": 1000,
+    "value": 755.4630126953125
   },
-  "/PARTICLES_SATURATION_LIMIT": {
-    "lowValue": 0,
-    "highValue": 255
+  "/paricles_birth_center_pos_y": {
+    "min": 0,
+    "max": 2160,
+    "value": 1352.5616455078125
   }
 }
