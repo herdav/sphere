@@ -78,7 +78,7 @@ PVector cell_segment_pos = new PVector();
 float cell_segment_d, cell_segment_r;
 int cell_segment_nx = 20, cell_segment_ny;
 int cell_segment_n, cell_segment_n_max = 200;
-int cell_set_max_entries = 100;
+int cell_max_entries = 100;
 int cell_calculationload_max, cell_calculationload_eff;
 float cell_calculationload;
 boolean cell_segment_display = false;
@@ -119,10 +119,10 @@ boolean part_set_limitter = false;
 boolean part_set_acceleration = false;
 boolean part_birth_circle = true;
 boolean part_set = true;
-boolean paricles_birth_center_pos_gui;
-PVector paricles_birth_circle_pos = new PVector();
-PVector paricles_birth_center_pos = new PVector();
-float paricles_birth_center_pos_x, paricles_birth_center_pos_y;
+boolean part_birth_center_pos_gui;
+PVector part_birth_circle_pos = new PVector();
+PVector part_birth_center_pos = new PVector();
+float part_birth_center_pos_x, part_birth_center_pos_y;
 
 // GUI & CONTROLS ------------------------------------------------------------------------------------------
 ControlP5 cp5;
@@ -263,14 +263,14 @@ void fieldsize() {
   field_border_bot = field_border_top;
   field_center.x = field_width / 2 + field_border_left;
   field_center.y = field_height / 2 + field_border_top;
-  paricles_birth_center_pos = field_center.copy();
+  part_birth_center_pos = field_center.copy();
 }
 
 void gui() {
   int cp5_w = 620, cp5_h = 30;
-  int cp5_s1 = 2, cp5_s2 = 2, cp5_s3 = 10;
+  int cp5_s1 = 2, cp5_s2 = 10;
   int cp5_l0 = 80, cp5_l1 = cp5_l0 + cp5_s1, cp5_l2;
-  int cp5_x, cp5_y, s;
+  int cp5_x, cp5_y;
   int cp5_hs = cp5_h + cp5_s1, cp5_n;
 
   cp5 = new ControlP5(this);
@@ -290,7 +290,7 @@ void gui() {
 
     cp5_system.getCaptionLabel().align(CENTER, CENTER);
 
-    cp5.addToggle("pointer_control").setPosition(0, cp5_y = cp5_s2)
+    cp5.addToggle("pointer_control").setPosition(0, cp5_y = cp5_s1)
       .setSize(cp5_l2, cp5_h).setGroup(cp5_system).setCaptionLabel("DEVICE CONTROL DISPLAY")
       .getCaptionLabel().align(CENTER, CENTER);
     cp5.addToggle("targt_pointer").setPosition(0, cp5_y += cp5_hs)
@@ -299,7 +299,7 @@ void gui() {
     cp5.addToggle("stream_data_serial_print").setPosition(0, cp5_y += cp5_hs)
       .setSize(cp5_l2, cp5_h).setCaptionLabel("SERIAL PRINT DEVICE DATA").setGroup(cp5_system)
       .getCaptionLabel().align(CENTER, CENTER);
-    cp5.addToggle("targt_display").setPosition(cp5_w - cp5_l2, cp5_y = cp5_s2)
+    cp5.addToggle("targt_display").setPosition(cp5_w - cp5_l2, cp5_y = cp5_s1)
       .setSize(cp5_l2, cp5_h).setValue(true).setCaptionLabel("TARGETS DISPLAY").setGroup(cp5_system)
       .getCaptionLabel().align(CENTER, CENTER);
     cp5.addToggle("part_clear").setPosition(cp5_w - cp5_l2, cp5_y += cp5_hs).setSize(cp5_l2, cp5_h)
@@ -314,7 +314,7 @@ void gui() {
 
     cp5_presets.getCaptionLabel().align(CENTER, CENTER);
 
-    cp5.addBang("load_preset_0").setPosition(cp5_x = 0, cp5_y = cp5_s2).setSize(cp5_l2, cp5_h)
+    cp5.addBang("load_preset_0").setPosition(cp5_x = 0, cp5_y = cp5_s1).setSize(cp5_l2, cp5_h)
       .setGroup(cp5_presets).setCaptionLabel("DEFAULT").getCaptionLabel().align(CENTER, CENTER);
     cp5.addBang("load_preset_1").setPosition(cp5_x += cp5_l2 + cp5_s1, cp5_y).setSize(cp5_l2, cp5_h)
       .setGroup(cp5_presets).setCaptionLabel("PRESET 1").getCaptionLabel().align(CENTER, CENTER);
@@ -325,40 +325,40 @@ void gui() {
   }
 
   cp5_n = 3;
-  s = (cp5_w - 3 * cp5_s1 - cp5_l0) / 3;
+  cp5_l2 = (cp5_w - 3 * cp5_s1 - cp5_l0) / 3;
   Group cp5_targets = cp5.addGroup("TARGETS").setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s1).setBarHeight(cp5_h); {
 
     cp5_targets.getCaptionLabel().align(CENTER, CENTER);
 
     cp5.addToggle("targt_0_pol").setValue(true).setMode(ControlP5.SWITCH).setColorActive(color(100))
-      .setPosition(0, cp5_y = cp5_s2).setSize(cp5_l0, cp5_h).setCaptionLabel("").setGroup(cp5_targets)
+      .setPosition(0, cp5_y = cp5_s1).setSize(cp5_l0, cp5_h).setCaptionLabel("").setGroup(cp5_targets)
       .getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("targt_0_strgth", targt_strgth_min, targt_strgth_max, cp5_l1, cp5_y, s, cp5_h)
+    cp5.addSlider("targt_0_strgth", targt_strgth_min, targt_strgth_max, cp5_l1, cp5_y, cp5_l2, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("").setGroup(cp5_targets);
-    cp5.addSlider("targt_0_x", 0, field_width, cp5_l1 + s + cp5_s1, cp5_y, s, cp5_h)
+    cp5.addSlider("targt_0_x", 0, field_width, cp5_l1 + cp5_l2 + cp5_s1, cp5_y, cp5_l2, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("").setGroup(cp5_targets);
-    cp5.addSlider("targt_0_y", 0, field_height, cp5_l1 + 2 * (s + cp5_s1), cp5_y, s, cp5_h)
+    cp5.addSlider("targt_0_y", 0, field_height, cp5_l1 + 2 * (cp5_l2 + cp5_s1), cp5_y, cp5_l2, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("targt_0").setGroup(cp5_targets);
 
     cp5.addToggle("targt_1_pol").setValue(true).setMode(ControlP5.SWITCH).setColorActive(color(100))
       .setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h).setCaptionLabel("").setGroup(cp5_targets)
       .getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("targt_1_strgth", targt_strgth_min, targt_strgth_max, cp5_l1, cp5_y, s, cp5_h)
+    cp5.addSlider("targt_1_strgth", targt_strgth_min, targt_strgth_max, cp5_l1, cp5_y, cp5_l2, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("").setGroup(cp5_targets);
-    cp5.addSlider("targt_1_x", 0, field_width, cp5_l1 + s + cp5_s1, cp5_y, s, cp5_h)
+    cp5.addSlider("targt_1_x", 0, field_width, cp5_l1 + cp5_l2 + cp5_s1, cp5_y, cp5_l2, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("").setGroup(cp5_targets);
-    cp5.addSlider("targt_1_y", 0, field_height, cp5_l1 + 2 * (s + cp5_s1), cp5_y, s, cp5_h)
+    cp5.addSlider("targt_1_y", 0, field_height, cp5_l1 + 2 * (cp5_l2 + cp5_s1), cp5_y, cp5_l2, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("targt_1").setGroup(cp5_targets);
 
     cp5.addToggle("targt_2_pol").setValue(true).setMode(ControlP5.SWITCH).setColorActive(color(100))
       .setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h).setCaptionLabel("").setGroup(cp5_targets)
       .getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("targt_2_strgth", targt_strgth_min, targt_strgth_max, cp5_l1, cp5_y, s, cp5_h)
+    cp5.addSlider("targt_2_strgth", targt_strgth_min, targt_strgth_max, cp5_l1, cp5_y, cp5_l2, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("").setGroup(cp5_targets);
-    cp5.addSlider("targt_2_x", 0, field_width, cp5_l1 + s + cp5_s1, cp5_y, s, cp5_h)
+    cp5.addSlider("targt_2_x", 0, field_width, cp5_l1 + cp5_l2 + cp5_s1, cp5_y, cp5_l2, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("").setGroup(cp5_targets);
-    cp5.addSlider("targt_2_y", 0, field_height, cp5_l1 + 2 * (s + cp5_s1), cp5_y, s, cp5_h)
+    cp5.addSlider("targt_2_y", 0, field_height, cp5_l1 + 2 * (cp5_l2 + cp5_s1), cp5_y, cp5_l2, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("targt_2").setGroup(cp5_targets);
   }
 
@@ -366,7 +366,7 @@ void gui() {
   Group cp5_vectorfield = cp5.addGroup("VECTORFIELD").setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s1).setBarHeight(cp5_h); {
 
-    cp5.addButtonBar("theme").setGroup(cp5_vectorfield).setPosition(0, cp5_y = cp5_s2)
+    cp5.addButtonBar("theme").setGroup(cp5_vectorfield).setPosition(0, cp5_y = cp5_s1)
       .setSize(cp5_w, cp5_h).addItems(split("PS VS LD HM FL", " "))
       .onMove(new CallbackListener() {
         public void controlEvent(CallbackEvent ev) {
@@ -385,23 +385,23 @@ void gui() {
   }
 
   cp5_n = 10;
-  s = (cp5_w - cp5_s1 - cp5_l0) / 2;
+  cp5_l2 = (cp5_w - cp5_s1 - cp5_l0) / 2;
   Group cp5_particles = cp5.addGroup("PARTICLES").setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s1).setBarHeight(cp5_h); {
 
     cp5_particles.getCaptionLabel().align(CENTER, CENTER);
 
-    cp5.addToggle("part_birth_circle").setPosition(0, cp5_y = cp5_s2).setSize(cp5_l0, cp5_h)
+    cp5.addToggle("part_birth_circle").setPosition(0, cp5_y = cp5_s1).setSize(cp5_l0, cp5_h)
       .setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_birth_circle_r", 1, field_height / 2, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles).setValue(field_height * 0.45);
 
-    cp5.addToggle("paricles_birth_center_pos_gui").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
+    cp5.addToggle("part_birth_center_pos_gui").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
       .setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("paricles_birth_center_pos_x", 0, width, cp5_l1, cp5_y, s, cp5_h)
+    cp5.addSlider("part_birth_center_pos_x", 0, width, cp5_l1, cp5_y, cp5_l2, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("").setGroup(cp5_particles);
-    cp5.addSlider("paricles_birth_center_pos_y", 0, height, cp5_l1 + s + cp5_s1, cp5_y, s - 2, cp5_h)
-      .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("paricles_birth_center_pos").setGroup(cp5_particles);
+    cp5.addSlider("part_birth_center_pos_y", 0, height, cp5_l1 + cp5_l2 + cp5_s1, cp5_y, cp5_l2 - 2, cp5_h)
+      .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("part_birth_center_pos").setGroup(cp5_particles);
 
     cp5.addToggle("part_birth_circle_rot").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
       .setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
@@ -426,28 +426,28 @@ void gui() {
       .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
 
     cp5.addRange("part_saturation_scope").setGroup(cp5_particles).setBroadcast(false)
-      .setPosition(0, cp5_y += cp5_hs).setSize(cp5_w, cp5_h).setHandleSize(cp5_s3)
+      .setPosition(0, cp5_y += cp5_hs).setSize(cp5_w, cp5_h).setHandleSize(cp5_s2)
       .setRange(0, 255).setRangeValues(part_saturation_min, part_saturation_max).setBroadcast(true);
 
     cp5.addRange("part_saturation_limit").setGroup(cp5_particles).setBroadcast(false)
-      .setPosition(0, cp5_y += cp5_hs).setSize(cp5_w, cp5_h).setHandleSize(cp5_s3)
+      .setPosition(0, cp5_y += cp5_hs).setSize(cp5_w, cp5_h).setHandleSize(cp5_s2)
       .setRange(0, 255).setRangeValues(part_saturation_min, part_saturation_max).setBroadcast(true);
   }
 
   cp5_n = 8;
-  s = (cp5_w - cp5_s1 - cp5_l0) / 2;
+  cp5_l2 = (cp5_w - cp5_s1 - cp5_l0) / 2;
   Group cp5_part_interaction = cp5.addGroup("PARTICLES INTERACTION").setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s1).setBarHeight(cp5_h); {
 
     cp5_part_interaction.getCaptionLabel().align(CENTER, CENTER);
     cp5_vectorfield.getCaptionLabel().align(CENTER, CENTER);
 
-    cp5.addSlider("cell_segment_nx", 8, cell_segment_n_max, 0, cp5_y = cp5_s2, cp5_w, cp5_h)
+    cp5.addSlider("cell_segment_nx", 8, cell_segment_n_max, 0, cp5_y = cp5_s1, cp5_w, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
 
     cp5.addToggle("cell_segment_display").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
       .setCaptionLabel("SHOW").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("cell_set_max_entries", 2, 200, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h)
+    cp5.addSlider("cell_max_entries", 2, 200, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
 
     cp5.addToggle("part_set_limitter").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
@@ -457,17 +457,17 @@ void gui() {
 
     cp5.addToggle("part_interaction").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
       .setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addRange("part_interaction_range").setCaptionLabel("").setGroup(cp5_part_interaction)
-      .setBroadcast(false).setPosition(cp5_l1, cp5_y).setSize(s, cp5_h).setHandleSize(cp5_s3)
-      .setRange(0, 100).setRangeValues(part_interaction_d_min, part_interaction_d_max).setBroadcast(true);
-    cp5.addSlider("part_interaction_border", 0, 100, cp5_l1 + s + cp5_s1, cp5_y, s - 2, cp5_h)
-      .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("part_interaction_range")
+    cp5.addRange("part_interaction_scope").setCaptionLabel("").setGroup(cp5_part_interaction)
+      .setBroadcast(false).setPosition(cp5_l1, cp5_y).setSize(cp5_l2, cp5_h).setHandleSize(cp5_s2)
+      .setRange(0, 200).setRangeValues(part_interaction_d_min, part_interaction_d_max).setBroadcast(true);
+    cp5.addSlider("part_interaction_border", 0, 100, cp5_l1 + cp5_l2 + cp5_s1, cp5_y, cp5_l2 - 2, cp5_h)
+      .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("part_interaction_scope")
       .setGroup(cp5_part_interaction);
 
     cp5.addToggle("part_set_interaction_draw").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
       .setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addRange("part_interaction_draw").setGroup(cp5_part_interaction).setBroadcast(false)
-      .setPosition(cp5_l1, cp5_y).setSize(cp5_w - cp5_l1, cp5_h).setHandleSize(cp5_s3).setRange(0, 100)
+      .setPosition(cp5_l1, cp5_y).setSize(cp5_w - cp5_l1, cp5_h).setHandleSize(cp5_s2).setRange(0, 200)
       .setRangeValues(part_interaction_draw_d_min, part_interaction_draw_d_max).setBroadcast(true);
 
     cp5.addToggle("part_set_interaction").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
@@ -481,22 +481,22 @@ void gui() {
       .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
   }
 
-  s = (cp5_w - 20) / 3;
+  cp5_l2 = (cp5_w - 20) / 3;
   Group cp5_color = cp5.addGroup("PARTICLES COLOR").setBackgroundColor(50).setBarHeight(cp5_h)
-    .setBackgroundHeight(s + 50); {
+    .setBackgroundHeight(cp5_l2 + 50); {
 
     cp5_color.getCaptionLabel().align(CENTER, CENTER);
 
-    cp5.addColorWheel("color_a", 0, 10, s).setRGB(color(255, 0, 0))
+    cp5.addColorWheel("color_a", 0, 10, cp5_l2).setRGB(color(255, 0, 0))
       .setCaptionLabel("LEFT").setGroup(cp5_color);
-    cp5.addColorWheel("color_b", s + 10, 10, s).setRGB(color(0, 255, 0))
+    cp5.addColorWheel("color_b", cp5_l2 + 10, 10, cp5_l2).setRGB(color(0, 255, 0))
       .setCaptionLabel("RIGHT").setGroup(cp5_color);
-    cp5.addColorWheel("color_c", cp5_y = 2 * s + 20, 10, s).setRGB(color(0, 0, 255))
+    cp5.addColorWheel("color_c", cp5_y = 2 * cp5_l2 + 20, 10, cp5_l2).setRGB(color(0, 0, 255))
       .setCaptionLabel("TOP").setGroup(cp5_color);
 
-    cp5.addToggle("background_display").setPosition(0, s = s + 50).setSize(cp5_l0, cp5_h)
+    cp5.addToggle("background_display").setPosition(0, cp5_l2 = cp5_l2 + 50).setSize(cp5_l0, cp5_h)
       .setCaptionLabel("set").setGroup(cp5_color).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("background_color", 0, 255, cp5_l1, s, cp5_w - cp5_l1, cp5_h)
+    cp5.addSlider("background_color", 0, 255, cp5_l1, cp5_l2, cp5_w - cp5_l1, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_color);
   }
 
@@ -523,7 +523,7 @@ void controlEvent(ControlEvent theControlEvent) {
     part_saturation_min_limit = int(theControlEvent.getController().getArrayValue(0));
     part_saturation_max_limit = int(theControlEvent.getController().getArrayValue(1));
   }
-  if (theControlEvent.isFrom("part_interaction_range")) {
+  if (theControlEvent.isFrom("part_interaction_scope")) {
     part_interaction_d_min = int(theControlEvent.getController().getArrayValue(0));
     part_interaction_d_max = int(theControlEvent.getController().getArrayValue(1));
   }
@@ -652,6 +652,7 @@ void targets() {
         }
       }
     }
+
     // if mouse leaves the field
     if (mouseX < field_border_left || mouseY < field_border_top || mouseY > height - field_border_bot) {
       targt_set_strength = 1;
@@ -757,7 +758,7 @@ void targets() {
 
         // move center of particlesbirth to selected target
         if (key == '.') {
-          paricles_birth_center_pos = targets.get(i).pos.copy();
+          part_birth_center_pos = targets.get(i).pos.copy();
         }
 
         // move target
@@ -795,21 +796,21 @@ void particles() {
     if (key == 'i') move_particles = true;
     if (move_particles) {
       move_target = false;
-      if (keyCode == UP) paricles_birth_center_pos.y -= 1;
-      if (keyCode == DOWN) paricles_birth_center_pos.y += 1;
-      if (keyCode == LEFT) paricles_birth_center_pos.x -= 1;
-      if (keyCode == RIGHT) paricles_birth_center_pos.x += 1;
-      if (key == '.') paricles_birth_center_pos = field_center.copy();
+      if (keyCode == UP) part_birth_center_pos.y -= 1;
+      if (keyCode == DOWN) part_birth_center_pos.y += 1;
+      if (keyCode == LEFT) part_birth_center_pos.x -= 1;
+      if (keyCode == RIGHT) part_birth_center_pos.x += 1;
+      if (key == '.') part_birth_center_pos = field_center.copy();
     }
   }
 
   // move center of particlesbirth by gui 
-  if (paricles_birth_center_pos_gui) {
-    paricles_birth_center_pos.x = paricles_birth_center_pos_x;
-    paricles_birth_center_pos.y = paricles_birth_center_pos_y;
+  if (part_birth_center_pos_gui) {
+    part_birth_center_pos.x = part_birth_center_pos_x;
+    part_birth_center_pos.y = part_birth_center_pos_y;
   }
-  cp5.getController("paricles_birth_center_pos_x").setValue(paricles_birth_center_pos.x);
-  cp5.getController("paricles_birth_center_pos_y").setValue(paricles_birth_center_pos.y);
+  cp5.getController("part_birth_center_pos_x").setValue(part_birth_center_pos.x);
+  cp5.getController("part_birth_center_pos_y").setValue(part_birth_center_pos.y);
 
   if (part_birth_circle) {
     float rot = 0;
@@ -821,21 +822,21 @@ void particles() {
 
     int part_streams_circle = 3 * part_streams;
     for (int i = 0; i <= part_streams_circle; i++) {
-      paricles_birth_circle_pos.x = paricles_birth_center_pos.x + part_birth_circle_r *
+      part_birth_circle_pos.x = part_birth_center_pos.x + part_birth_circle_r *
         cos((PI * i * 2 + rot) / (part_streams_circle));
-      paricles_birth_circle_pos.y = paricles_birth_center_pos.y - part_birth_circle_r *
+      part_birth_circle_pos.y = part_birth_center_pos.y - part_birth_circle_r *
         sin((PI * i * 2 + rot) / (part_streams_circle));
 
       if (i >= 0 && i < part_streams_circle / 3) {
-        particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y,
+        particles.add(new Particle(part_birth_circle_pos.x, part_birth_circle_pos.y,
           part_lifespan, color_a));
       }
       if (i >= part_streams_circle / 3 && i < part_streams_circle / 3 * 2) {
-        particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y,
+        particles.add(new Particle(part_birth_circle_pos.x, part_birth_circle_pos.y,
           part_lifespan, color_b));
       }
       if (i >= part_streams_circle / 3 * 2 && i < part_streams_circle) {
-        particles.add(new Particle(paricles_birth_circle_pos.x, paricles_birth_circle_pos.y,
+        particles.add(new Particle(part_birth_circle_pos.x, part_birth_circle_pos.y,
           part_lifespan, color_c));
       }
     }
@@ -957,7 +958,7 @@ void data() {
       cells.size() + "\n" +
       part_lines_count + " (" +
       cell_calculationload + "%)\n" +
-      "P" + int(part_interaction_d_max) + " / C" + int(cell_segment_d) + "\n" +
+      "P" + int(part_interaction_d_max) + " / C" + int(2 * cell_segment_d) + "\n" +
       targets.size() + "\n" +
       load_preset_last + " is loaded\n" +
       stream_port_name + "\n\n" +
@@ -1227,7 +1228,7 @@ class Cluster {
 
   void display(boolean set) {
     if (set) {
-      fill(map(list.size(), 0, cell_set_max_entries, 0, 255));
+      fill(map(list.size(), 0, cell_max_entries, 0, 255));
       noStroke();
       rectMode(CENTER);
       rect(orgin.x, orgin.y, cell_segment_d, cell_segment_d);
@@ -1287,7 +1288,7 @@ class Particle {
       Cluster cell = cells.get(active_cell);
 
       // set max entries in cell
-      if (cell.list.size() < cell_set_max_entries) {
+      if (cell.list.size() < cell_max_entries) {
         cell.list.append(id);
 
         // define surrounding cells
@@ -1382,7 +1383,7 @@ class Particle {
           }
 
           if (part_set_limitter) {
-            float limitter = cell.list.size() / cell_set_max_entries;
+            float limitter = cell.list.size() / cell_max_entries;
             lifespan -= limitter * part_limitter_factor;
           }
         }
