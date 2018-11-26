@@ -76,6 +76,7 @@ Cluster cell;
 ArrayList < Cluster > cells;
 PVector cell_segment_pos = new PVector();
 float cell_segment_d, cell_segment_r, cell_segment_i;
+float cell_limitter_factor = 1;
 int cell_segment_nx = 20, cell_segment_ny;
 int cell_segment_n, cell_segment_n_max = 200;
 int cell_max_entries = 100;
@@ -108,7 +109,6 @@ float part_speed = 14;
 float part_birth_circle_r;
 float part_birth_center_pos_x, part_birth_center_pos_y;
 float part_distrelated_potency = 0.5;
-float part_limitter_factor = 1;
 float part_acceleration_factor = 0;
 boolean part_birth_circle_rot = false;
 boolean part_clear = false;
@@ -452,7 +452,7 @@ void gui() {
 
     cp5.addToggle("part_set_limitter").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
       .setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_limitter_factor", 0, 100, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h)
+    cp5.addSlider("cell_limitter_factor", 0, 100, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
 
     cp5.addToggle("part_interaction").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
@@ -722,10 +722,9 @@ void targets() {
     targt.update(pointer_targets.magnitude.x, pointer_targets.magnitude.y);
   }
 
-  targt_get_strength = 0;
+  targt_get_strength = 0; // reset strengths
   for (int i = 0; i < targets.size(); i++) {
     targt = targets.get(i);
-
     targt.display(targt_display);
 
     // add all strengths
@@ -821,10 +820,7 @@ void particles() {
     part_birth_center_pos.y = part_birth_center_pos_y;
   }
 
-  // update gui
-  cp5.getController("part_birth_center_pos_x").setValue(part_birth_center_pos.x);
-  cp5.getController("part_birth_center_pos_y").setValue(part_birth_center_pos.y);
-
+  // set birth of particles as circle
   if (part_birth_circle) {
     // rotation of birth circle
     float rot = 0;
@@ -857,8 +853,10 @@ void particles() {
     }
   }
 
+  // reset particle interaction lines count
   part_lines_count = 0;
 
+  // call particle class
   for (int i = 0; i < particles.size(); i++) {
     Particle part = particles.get(i);
     part.clear(part_clear);
@@ -872,15 +870,20 @@ void particles() {
     part.display(part_set);
   }
 
+  // calculate particle interactions
   cell_calculationload_max = int(sq(particles.size()));
   cell_calculationload = 100 * float(cell_calculationload_eff) / float(cell_calculationload_max);
 
+  // delete passed particles
   for (int i = particles.size() - 1; i >= 0; i--) {
     Particle part = particles.get(i);
     if (part.lifespan <= 0) particles.remove(i);
   }
 
   // update gui
+  cp5.getController("part_birth_center_pos_x").setValue(part_birth_center_pos.x);
+  cp5.getController("part_birth_center_pos_y").setValue(part_birth_center_pos.y);
+
   if (part_interaction) {
     cp5.getController("part_streams").setMax(20);
   } else cp5.getController("part_streams").setMax(200);
@@ -896,9 +899,6 @@ void cluster() {
 
     if (field_height % cell_segment_ny > 0) {
       cell_segment_nx++;
-
-      // update gui
-      cp5.getController("cell_segment_nx").setValue(cell_segment_nx);
     }
 
     cell_segment_d = field_height / cell_segment_nx;
@@ -906,6 +906,7 @@ void cluster() {
     cell_segment_i = 2 * cell_segment_d;
 
     // update gui
+    cp5.getController("cell_segment_nx").setValue(cell_segment_nx);
     cp5.getController("part_interaction_scope").setMax(cell_segment_i);
     cp5.getController("part_interaction_draw").setMax(cell_segment_i);
 
@@ -918,6 +919,7 @@ void cluster() {
     }
   }
 
+  // calculate cell load
   cell_calculationload_eff = 0;
   for (int i = 0; i < cells.size(); i++) {
     Cluster cell = cells.get(i);
@@ -1414,7 +1416,7 @@ class Particle {
 
           if (part_set_limitter) {
             float limitter = cell.list.size() / cell_max_entries;
-            lifespan -= limitter * part_limitter_factor;
+            lifespan -= limitter * cell_limitter_factor;
           }
         }
       }
