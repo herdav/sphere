@@ -94,6 +94,7 @@ int part_saturation_min_limit = 0;
 int part_saturation_max_limit = 255;
 int part_birth_circle_rot_count = 0;
 int part_lines_count = 0;
+int part_lines_weight = 1;
 float part_birth_circle_rot_speed = 60;
 float part_lifespan = 80;
 float part_lifespan_max = 400;
@@ -143,8 +144,8 @@ int textSize = 21;
 PVector field_center = new PVector();
 
 void setup() {
-  //size(3800, 2000, P3D);
-  fullScreen(P3D);
+  //size(3800, 2000, P2D);
+  fullScreen(P2D);
   blendMode(ADD);
 
   String[] ports = Serial.list();
@@ -456,8 +457,8 @@ void gui() {
 
     cp5.addToggle("part_interaction").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
       .setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addRange("part_interaction_scope").setCaptionLabel("").setGroup(cp5_part_interaction)
-      .setBroadcast(false).setPosition(cp5_l1, cp5_y).setSize(cp5_l2, cp5_h).setHandleSize(cp5_s2)
+    cp5.addRange("part_interaction_scope").setGroup(cp5_part_interaction).setBroadcast(false)
+      .setPosition(cp5_l1, cp5_y).setSize(cp5_l2, cp5_h).setHandleSize(cp5_s2).setCaptionLabel("")
       .setRange(0, 200).setRangeValues(part_interaction_d_min, part_interaction_d_max).setBroadcast(true);
     cp5.addSlider("part_interaction_border", 0, 100, cp5_l1 + cp5_l2 + cp5_s1, cp5_y, cp5_l2 - 2, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("part_interaction_scope")
@@ -466,8 +467,11 @@ void gui() {
     cp5.addToggle("part_set_interaction_draw").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
       .setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addRange("part_interaction_draw").setGroup(cp5_part_interaction).setBroadcast(false)
-      .setPosition(cp5_l1, cp5_y).setSize(cp5_w - cp5_l1, cp5_h).setHandleSize(cp5_s2).setRange(0, 200)
-      .setRangeValues(part_interaction_draw_d_min, part_interaction_draw_d_max).setBroadcast(true);
+      .setPosition(cp5_l1, cp5_y).setSize(cp5_l2, cp5_h).setHandleSize(cp5_s2)
+      .setRange(0, 200).setCaptionLabel("").setRangeValues(part_interaction_draw_d_min, part_interaction_draw_d_max)
+      .setBroadcast(true);
+    cp5.addSlider("part_lines_weight", 1, 10, cp5_l1 + cp5_l2 + cp5_s1, cp5_y, cp5_l2 - 2, cp5_h)
+      .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction).setCaptionLabel("part_interaction_draw");
 
     cp5.addToggle("part_set_interaction").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
       .setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
@@ -513,22 +517,22 @@ void gui() {
     .open();
 }
 
-void controlEvent(ControlEvent theControlEvent) {
-  if (theControlEvent.isFrom("part_saturation_scope")) {
-    part_saturation_min = int(theControlEvent.getController().getArrayValue(0));
-    part_saturation_max = int(theControlEvent.getController().getArrayValue(1));
+void controlEvent(ControlEvent ce) {
+  if (ce.isFrom("part_saturation_scope")) {
+    part_saturation_min = int(ce.getController().getArrayValue(0));
+    part_saturation_max = int(ce.getController().getArrayValue(1));
   }
-  if (theControlEvent.isFrom("part_saturation_limit")) {
-    part_saturation_min_limit = int(theControlEvent.getController().getArrayValue(0));
-    part_saturation_max_limit = int(theControlEvent.getController().getArrayValue(1));
+  if (ce.isFrom("part_saturation_limit")) {
+    part_saturation_min_limit = int(ce.getController().getArrayValue(0));
+    part_saturation_max_limit = int(ce.getController().getArrayValue(1));
   }
-  if (theControlEvent.isFrom("part_interaction_scope")) {
-    part_interaction_d_min = int(theControlEvent.getController().getArrayValue(0));
-    part_interaction_d_max = int(theControlEvent.getController().getArrayValue(1));
+  if (ce.isFrom("part_interaction_scope")) {
+    part_interaction_d_min = int(ce.getController().getArrayValue(0));
+    part_interaction_d_max = int(ce.getController().getArrayValue(1));
   }
-  if (theControlEvent.isFrom("part_interaction_draw")) {
-    part_interaction_draw_d_min = int(theControlEvent.getController().getArrayValue(0));
-    part_interaction_draw_d_max = int(theControlEvent.getController().getArrayValue(1));
+  if (ce.isFrom("part_interaction_draw")) {
+    part_interaction_draw_d_min = int(ce.getController().getArrayValue(0));
+    part_interaction_draw_d_max = int(ce.getController().getArrayValue(1));
   }
 }
 
@@ -791,6 +795,12 @@ void targets() {
   targt_get_strength /= targets.size();
 }
 
+float decimalPlaces(int n, float x) {
+  // n set decimal places of x
+  float r = float(int(x * (n * 10))) / (n * 10);
+  return r;
+}
+
 void particles() {
   if (keyPressed) {
     // move center of particlesbirth by buttons
@@ -816,6 +826,7 @@ void particles() {
   cp5.getController("part_birth_center_pos_y").setValue(part_birth_center_pos.y);
 
   if (part_birth_circle) {
+    // rotation of birth circle
     float rot = 0;
     if (part_birth_circle_rot) {
       part_birth_circle_rot_count++;
@@ -823,6 +834,7 @@ void particles() {
       rot = TWO_PI / part_birth_circle_rot_speed * part_birth_circle_rot_count;
     }
 
+    // birth of particle streams
     int part_streams_circle = 3 * part_streams;
     for (int i = 0; i <= part_streams_circle; i++) {
       part_birth_circle_pos.x = part_birth_center_pos.x + part_birth_circle_r *
@@ -861,13 +873,17 @@ void particles() {
   }
 
   cell_calculationload_max = int(sq(particles.size()));
-  cell_calculationload = float(int(1000 * float(cell_calculationload_eff) /
-    float(cell_calculationload_max))) / 10;
+  cell_calculationload = 100 * float(cell_calculationload_eff) / float(cell_calculationload_max);
 
   for (int i = particles.size() - 1; i >= 0; i--) {
     Particle part = particles.get(i);
     if (part.lifespan <= 0) particles.remove(i);
   }
+
+  // update gui
+  if (part_interaction) {
+    cp5.getController("part_streams").setMax(20);
+  } else cp5.getController("part_streams").setMax(200);
 }
 
 void cluster() {
@@ -960,15 +976,18 @@ void data() {
     textSize(textSize);
     fill(255);
     textAlign(LEFT, BOTTOM);
-    text("FPS\n" + "VECTORS\n" + "PARTICLES\n" + "LINES\n" + "CLUSTER\n" + "DIST\n" +
+    text("FPS\n" + "VECTORS\n" + "PARTICLES\n" + "CLUSTERCELLS\n" + "INTERACTION\n" + "LINES\n" + "DIST\n" +
       "TARGETS\n" + "PRESET\n" + "DEVICE\n\n" + year() + '/' + month() + '/' + day() + "\n\n" +
       "David Herren", 20, height - 20);
 
     text(int(frameRate) + "\n" +
       vectors.size() + "\n" +
       particles.size() + "\n" +
+      cells.size() + "\n" +
+      decimalPlaces(1, float(cell_calculationload_eff) / 1000000) + "M (" +
+      decimalPlaces(1, cell_calculationload) + "%) of " +
+      decimalPlaces(1, float(cell_calculationload_max) / 1000000) + "M \n" +
       part_lines_count + "\n" +
-      cells.size() + " / " + cell_calculationload + "%\n" +
       "P" + int(part_interaction_d_max) + " / C" + int(cell_segment_i) + "\n" +
       targets.size() + "\n" +
       load_preset_last + " is loaded\n" +
@@ -1385,7 +1404,7 @@ class Particle {
               connected = false;
 
               if (!connected) {
-                strokeWeight(1);
+                strokeWeight(part_lines_weight);
                 stroke(r, g, b, a);
                 line(pos.x, pos.y, part.pos.x, part.pos.y);
                 part_lines_count++;
