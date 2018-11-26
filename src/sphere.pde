@@ -794,9 +794,8 @@ void targets() {
   targt_get_strength /= targets.size();
 }
 
-float decimalPlaces(int n, float x) {
-  // n set decimal places of x
-  float r = float(int(x * (n * 10))) / (n * 10);
+float decimalPlaces(float x, float d) {
+  float r = float(int(x / d * 10)) / 10;
   return r;
 }
 
@@ -978,18 +977,18 @@ void data() {
     textSize(textSize);
     fill(255);
     textAlign(LEFT, BOTTOM);
-    text("FPS\n" + "VECTORS\n" + "PARTICLES\n" + "CLUSTERCELLS\n" + "INTERACTION\n" + "LINES\n" + "DIST\n" +
-      "TARGETS\n" + "PRESET\n" + "DEVICE\n\n" + year() + '/' + month() + '/' + day() + "\n\n" +
-      "David Herren", 20, height - 20);
+    text("FPS\n" + "VECTORS\n" + "PARTICLES\n" + "CLUSTERCELLS\n" + "INTERACTION\n" + "LINES\n" +
+      "DISTANCE\n" + "TARGETS\n" + "PRESET\n" + "DEVICE\n\n" + year() + '/' + month() + '/' +
+      day() + "\n\n" + "David Herren", 20, height - 20);
 
     text(int(frameRate) + "\n" +
       vectors.size() + "\n" +
-      particles.size() + "\n" +
+      decimalPlaces(particles.size(), 1000) + "k\n" +
       cells.size() + "\n" +
-      decimalPlaces(1, float(cell_calculationload_eff) / 1000000) + "M (" +
-      decimalPlaces(1, cell_calculationload) + "%) of " +
-      decimalPlaces(1, float(cell_calculationload_max) / 1000000) + "M \n" +
-      part_lines_count + "\n" +
+      decimalPlaces(cell_calculationload_eff, 1000000) + "M (" +
+      decimalPlaces(cell_calculationload, 1) + "%) of " +
+      decimalPlaces(cell_calculationload_max, 1000000) + "M\n" +
+      decimalPlaces(part_lines_count, 1000) + "k\n" +
       "P" + int(part_interaction_d_max) + " / C" + int(cell_segment_i) + "\n" +
       targets.size() + "\n" +
       load_preset_last + " is loaded\n" +
