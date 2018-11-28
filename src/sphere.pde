@@ -96,6 +96,7 @@ int part_saturation_max_limit = 255;
 int part_birth_circle_rot_count = 0;
 int part_lines_count = 0;
 int part_lines_weight = 1;
+int part_lines_max = 10;
 float part_birth_circle_rot_speed = 60;
 float part_lifespan = 80;
 float part_lifespan_max = 400;
@@ -147,6 +148,7 @@ void setup() {
   //size(3800, 2000, P2D);
   fullScreen(P2D);
   blendMode(ADD);
+  noSmooth();
 
   String[] ports = Serial.list();
   if (ports.length <= 1) println("No ports found!");
@@ -470,7 +472,7 @@ void gui() {
       .setPosition(cp5_l1, cp5_y).setSize(cp5_l2, cp5_h).setHandleSize(cp5_s2)
       .setRange(0, 200).setCaptionLabel("").setRangeValues(part_interaction_draw_d_min, part_interaction_draw_d_max)
       .setBroadcast(true);
-    cp5.addSlider("part_lines_weight", 1, 10, cp5_l1 + cp5_l2 + cp5_s1, cp5_y, cp5_l2 - 2, cp5_h)
+    cp5.addSlider("part_lines_max", 1, 50, cp5_l1 + cp5_l2 + cp5_s1, cp5_y, cp5_l2 - 2, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction).setCaptionLabel("part_interaction_draw");
 
     cp5.addToggle("part_set_interaction").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
@@ -971,6 +973,7 @@ void field() {
 
 void data() {
   if (controls_show) {
+    noStroke();
     fill(0);
     rectMode(CORNER);
     rect(0, 0, field_border_left, height);
@@ -1373,6 +1376,8 @@ class Particle {
       PVector dist = new PVector();
       PVector force = new PVector();
 
+      float part_saturation_scope_min = cp5.getController("part_saturation_scope").getMin();
+
       if (active_cell >= 0 && active_cell < cells.size()) {
         Cluster cell = cells.get(active_cell);
 
@@ -1404,7 +1409,7 @@ class Particle {
               part.connected = true;
               connected = false;
 
-              if (!connected) {
+              if (!connected && a > part_saturation_scope_min && i <= part_lines_max) {
                 strokeWeight(part_lines_weight);
                 stroke(r, g, b, a);
                 line(pos.x, pos.y, part.pos.x, part.pos.y);
