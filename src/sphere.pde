@@ -1,34 +1,31 @@
-/*  SPHERE -------------------------------------------------------------------------------------------------
-    Created 2018 by David Herren.                                                                          /
-    https://davidherren.ch                                                                                 /
-    https://github.com/herdav/sphere                                                                       /
-    Licensed under the MIT License.                                                                        /
-    Built for 4K display.                                                                                  /
-    --------------------------------------------------------------------------------------------------------
+/*  SPHERE --------------------------------------------------------------------------------------------------------
+    Created 2018 by David Herren.                                                                                 /
+    https://davidherren.ch                                                                                        /
+    https://github.com/herdav/sphere                                                                              /
+    Licensed under the MIT License.                                                                               /
+    Built for 4K display.                                                                                         /
+    ---------------------------------------------------------------------------------------------------------------
 */
 
-/*  SHORT-KEYS ---------------------------------------------------------------------------------------------
-    [q, w] ........ gui hide/show                                                                          /
-    [s] ........... save screen as pdf                                                                     /
-    [p] ........... save current setting as preset                                                         /
-    [o] ........... update current preset                                                                  /
-    [i + ARROWS] .. move center of particlesbirth                                                          /
-    [i + .] ....... move center of particlesbirth to orgin                                                 /
-    mouse-left .... set target                                                                             /
-    mouse-right ... clear all targets                                                                      /
-    [1 - 9] ....... select target                                                                          /
-    [r + ARROWS] .. move current target                                                                    /
-    [. + ARROWS] .. move center of particlesbirth to current target                                        /
-    [t, u] ........ sub/add strength to the current target                                                 /
-    [z] ........... reverse polarity of the current target                                                 /
-    --------------------------------------------------------------------------------------------------------
+/*  SHORT-KEYS ----------------------------------------------------------------------------------------------------
+    [q, w] ........ gui hide/show                                                                                 /
+    [s] ........... save screen as pdf                                                                            /
+    [p] ........... save current setting as preset                                                                /
+    [o] ........... update current preset                                                                         /
+    mouse-left .... set target                                                                                    /
+    mouse-right ... clear all targets                                                                             /
+    [1 - 9] ....... select target                                                                                 /
+    [r + ARROWS] .. move current target                                                                           /
+    [t, u] ........ sub/add strength to the current target                                                        /
+    [z] ........... reverse polarity of the current target                                                        /
+    ---------------------------------------------------------------------------------------------------------------
 */
 
 import controlP5.*;
 import processing.pdf.*;
 import processing.serial.*;
 
-// SERIAL COMMUNICATION ------------------------------------------------------------------------------------
+// SERIAL COMMUNICATION -------------------------------------------------------------------------------------------
 boolean stream_port_on = false;
 boolean stream_data_serial_print = false;
 Serial stream_port;
@@ -41,12 +38,12 @@ stream_data_poti, stream_data_rpm, stream_data_angle_stp,
 stream_data_angle_rot;
 int stream_data_fctr = 1000;
 
-// POINTER -------------------------------------------------------------------------------------------------
+// POINTER --------------------------------------------------------------------------------------------------------
 Pointer pointer_yaw, pointer_x_axis, pointer_y_axis, pointer_stp;
 Pointer pointer_targets;
 boolean pointer_control = false;
 
-// TARGETS -------------------------------------------------------------------------------------------------
+// TARGETS --------------------------------------------------------------------------------------------------------
 Target targt;
 ArrayList < Target > targets;
 boolean targt_removed = false;
@@ -61,7 +58,7 @@ float targt_strgth_min = 0.1, targt_strgth_max = 10;
 float targt_set_strength = 1;
 float targt_get_strength;
 
-// VECTORFIELD ---------------------------------------------------------------------------------------------
+// VECTORFIELD ----------------------------------------------------------------------------------------------------
 Vectorfield vctr;
 ArrayList < Vectorfield > vectors;
 PVector vctr_segment_pos = new PVector();
@@ -71,7 +68,7 @@ float vctr_dist_factor = 1;
 int vctr_segment_nx = 200, vctr_segment_ny;
 int vctr_segment_n, vctr_segment_n_max = 400;
 
-// CLUSTER -------------------------------------------------------------------------------------------------
+// CLUSTER --------------------------------------------------------------------------------------------------------
 Cluster cell;
 ArrayList < Cluster > cells;
 PVector cell_segment_pos = new PVector();
@@ -84,20 +81,21 @@ int cell_calculationload_max, cell_calculationload_eff;
 float cell_calculationload;
 boolean cell_segment_display = false;
 
-// PARTICLES -----------------------------------------------------------------------------------------------
+// PARTICLES ------------------------------------------------------------------------------------------------------
 Particle part;
 ArrayList < Particle > particles;
 int part_size = 1;
 int part_streams = 10;
+int part_streams_max_1 = 200;
+int part_streams_max_2 = 100;
 int part_saturation_min = 0;
 int part_saturation_max = 255;
 int part_saturation_min_limit = 0;
 int part_saturation_max_limit = 255;
-int part_birth_circle_rot_count = 0;
 int part_lines_count = 0;
 int part_lines_weight = 1;
 int part_lines_max = 10;
-float part_birth_circle_rot_speed = 60;
+int part_streams_max = 200;
 float part_lifespan = 80;
 float part_lifespan_max = 400;
 float part_interaction_d_min = 0;
@@ -107,9 +105,6 @@ float part_interaction_force = 0;
 float part_interaction_draw_d_min = 0;
 float part_interaction_draw_d_max = 60;
 float part_speed = 14;
-float part_birth_circle_r;
-float part_birth_center_pos_x, part_birth_center_pos_y;
-float part_distrelated_potency = 0.5;
 float part_acceleration_factor = 0;
 boolean part_birth_circle_rot = false;
 boolean part_clear = false;
@@ -117,16 +112,13 @@ boolean part_interaction = false;
 boolean part_interaction_draw = false;
 boolean part_set_interaction = false;
 boolean part_set_interaction_draw = true;
-boolean part_set_distrelated = false;
 boolean part_set_limitter = false;
 boolean part_set_acceleration = false;
-boolean part_birth_circle = true;
+boolean part_birth_field = true;
 boolean part_set = true;
-boolean part_birth_center_pos_gui;
-PVector part_birth_circle_pos = new PVector();
-PVector part_birth_center_pos = new PVector();
+PVector part_birth_field_pos = new PVector();
 
-// GUI & CONTROLS ------------------------------------------------------------------------------------------
+// GUI & CONTROLS -------------------------------------------------------------------------------------------------
 ControlP5 cp5;
 color color_a, color_b, color_c, color_d;
 boolean controls_show = true;
@@ -266,7 +258,6 @@ void fieldsize() {
   field_border_bot = field_border_top;
   field_center.x = field_width / 2 + field_border_left;
   field_center.y = field_height / 2 + field_border_top;
-  part_birth_center_pos = field_center.copy();
 }
 
 void gui() {
@@ -386,36 +377,24 @@ void gui() {
       .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_vectorfield);
   }
 
-  cp5_n = 10;
+  cp5_n = 8;
   cp5_l2 = (cp5_w - cp5_s1 - cp5_l0) / 2;
   Group cp5_particles = cp5.addGroup("PARTICLES").setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s1).setBarHeight(cp5_h); {
 
     cp5_particles.getCaptionLabel().align(CENTER, CENTER);
 
-    cp5.addToggle("part_birth_circle").setPosition(0, cp5_y = cp5_s1).setSize(cp5_l0, cp5_h)
+    cp5.addToggle("part_birth_field").setPosition(0, cp5_y = cp5_s1).setSize(cp5_l0, cp5_h)
       .setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_birth_circle_r", 1, field_height / 2, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h)
-      .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles).setValue(field_height * 0.45);
-
-    cp5.addToggle("part_birth_center_pos_gui").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
-      .setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_birth_center_pos_x", 0, width, cp5_l1, cp5_y, cp5_l2, cp5_h)
-      .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("").setGroup(cp5_particles);
-    cp5.addSlider("part_birth_center_pos_y", 0, height, cp5_l1 + cp5_l2 + cp5_s1, cp5_y, cp5_l2 - 2, cp5_h)
-      .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("part_birth_center_pos").setGroup(cp5_particles);
-
-    cp5.addToggle("part_birth_circle_rot").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
-      .setCaptionLabel("set").setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_birth_circle_rot_speed", 120, 1, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h)
-      .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles).setValue(field_height * 0.45);
+    cp5.addSlider("", 0, width, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h)
+      .setSliderMode(Slider.FLEXIBLE).setCaptionLabel("part_birth_field").setGroup(cp5_particles);
 
     cp5.addToggle("part_set").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h).setCaptionLabel("set")
       .setGroup(cp5_particles).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_size", 1, 20, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
 
-    cp5.addSlider("part_streams", 1, 200, 0, cp5_y += cp5_hs, cp5_w, cp5_h)
+    cp5.addSlider("part_streams", 1, part_streams_max_1, 0, cp5_y += cp5_hs, cp5_w, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
     cp5.addSlider("part_lifespan", 1, part_lifespan_max, 0, cp5_y += cp5_hs, cp5_w, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_particles);
@@ -436,7 +415,7 @@ void gui() {
       .setRange(0, 255).setRangeValues(part_saturation_min, part_saturation_max).setBroadcast(true);
   }
 
-  cp5_n = 8;
+  cp5_n = 7;
   cp5_l2 = (cp5_w - cp5_s1 - cp5_l0) / 2;
   Group cp5_part_interaction = cp5.addGroup("PARTICLES INTERACTION").setBackgroundColor(50)
     .setBackgroundHeight(cp5_n * cp5_h + (cp5_n + 1) * cp5_s1).setBarHeight(cp5_h); {
@@ -478,11 +457,6 @@ void gui() {
     cp5.addToggle("part_set_interaction").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
       .setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
     cp5.addSlider("part_interaction_force", -10, 10, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h)
-      .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
-
-    cp5.addToggle("part_set_distrelated").setPosition(0, cp5_y += cp5_hs).setSize(cp5_l0, cp5_h)
-      .setCaptionLabel("SET").setGroup(cp5_part_interaction).getCaptionLabel().align(CENTER, CENTER);
-    cp5.addSlider("part_distrelated_potency", 0, 1, cp5_l1, cp5_y, cp5_w - cp5_l1, cp5_h)
       .setSliderMode(Slider.FLEXIBLE).setGroup(cp5_part_interaction);
   }
 
@@ -762,11 +736,6 @@ void targets() {
           }
         }
 
-        // move center of particlesbirth to selected target
-        if (key == '.') {
-          part_birth_center_pos = targets.get(i).pos.copy();
-        }
-
         // move target
         if (key == 'r') move_target = true;
         if (move_target) {
@@ -802,54 +771,24 @@ float decimalPlaces(float x, float d) {
 }
 
 void particles() {
-  if (keyPressed) {
-    // move center of particlesbirth by buttons
-    if (key == 'i') move_particles = true;
-    if (move_particles) {
-      move_target = false;
-      if (keyCode == UP) part_birth_center_pos.y -= 1;
-      if (keyCode == DOWN) part_birth_center_pos.y += 1;
-      if (keyCode == LEFT) part_birth_center_pos.x -= 1;
-      if (keyCode == RIGHT) part_birth_center_pos.x += 1;
-      if (key == '.') part_birth_center_pos = field_center.copy();
-    }
-  }
+  // set birth of particles as field
+  if (part_birth_field) {
+    int part_streams_field = int(sqrt(part_streams));
+    float part_streams_field_d = field_width / (part_streams_field + 1);
+    for (int i = 1; i <= part_streams_field; i++) {
+      for (int j = 1; j <= part_streams_field; j++) {
+        part_birth_field_pos.x = field_border_left + j * part_streams_field_d;
+        part_birth_field_pos.y = field_border_top + i * part_streams_field_d;
 
-  // move center of particlesbirth by gui 
-  if (part_birth_center_pos_gui) {
-    part_birth_center_pos.x = part_birth_center_pos_x;
-    part_birth_center_pos.y = part_birth_center_pos_y;
-  }
-
-  // set birth of particles as circle
-  if (part_birth_circle) {
-    // rotation of birth circle
-    float rot = 0;
-    if (part_birth_circle_rot) {
-      part_birth_circle_rot_count++;
-      if (part_birth_circle_rot_count == part_birth_circle_rot_speed) part_birth_circle_rot_count = 0;
-      rot = TWO_PI / part_birth_circle_rot_speed * part_birth_circle_rot_count;
-    }
-
-    // birth of particle streams
-    int part_streams_circle = 3 * part_streams;
-    for (int i = 0; i <= part_streams_circle; i++) {
-      part_birth_circle_pos.x = part_birth_center_pos.x + part_birth_circle_r *
-        cos((PI * i * 2 + rot) / (part_streams_circle));
-      part_birth_circle_pos.y = part_birth_center_pos.y - part_birth_circle_r *
-        sin((PI * i * 2 + rot) / (part_streams_circle));
-
-      if (i >= 0 && i < part_streams_circle / 3) {
-        particles.add(new Particle(part_birth_circle_pos.x, part_birth_circle_pos.y,
-          part_lifespan, color_a));
-      }
-      if (i >= part_streams_circle / 3 && i < part_streams_circle / 3 * 2) {
-        particles.add(new Particle(part_birth_circle_pos.x, part_birth_circle_pos.y,
-          part_lifespan, color_b));
-      }
-      if (i >= part_streams_circle / 3 * 2 && i < part_streams_circle) {
-        particles.add(new Particle(part_birth_circle_pos.x, part_birth_circle_pos.y,
-          part_lifespan, color_c));
+        if (i > 0 && i < (part_streams_field + 1) / 3) {
+          particles.add(new Particle(part_birth_field_pos.x, part_birth_field_pos.y, part_lifespan, color_a));
+        }
+        if (i >= part_streams_field / 3 && i < (part_streams_field + 1) / 3 * 2) {
+          particles.add(new Particle(part_birth_field_pos.x, part_birth_field_pos.y, part_lifespan, color_b));
+        }
+        if (i >= part_streams_field / 3 * 2 && i < (part_streams_field + 1)) {
+          particles.add(new Particle(part_birth_field_pos.x, part_birth_field_pos.y, part_lifespan, color_c));
+        }
       }
     }
   }
@@ -881,13 +820,9 @@ void particles() {
     if (part.lifespan <= 0) particles.remove(i);
   }
 
-  // update gui
-  cp5.getController("part_birth_center_pos_x").setValue(part_birth_center_pos.x);
-  cp5.getController("part_birth_center_pos_y").setValue(part_birth_center_pos.y);
-
   if (part_interaction) {
-    cp5.getController("part_streams").setMax(20);
-  } else cp5.getController("part_streams").setMax(200);
+    cp5.getController("part_streams").setMax(part_streams_max_2);
+  } else cp5.getController("part_streams").setMax(part_streams_max_1);
 }
 
 void cluster() {
@@ -980,9 +915,9 @@ void data() {
     textSize(textSize);
     fill(255);
     textAlign(LEFT, BOTTOM);
-    text("FPS\n" + "VECTORS\n" + "PARTICLES\n" + "CLUSTERCELLS\n" + "INTERACTION\n" + "LINES\n" +
-      "DISTANCE\n" + "TARGETS\n" + "PRESET\n" + "DEVICE\n\n" + year() + '/' + month() + '/' +
-      day() + "\n\n" + "David Herren", 20, height - 20);
+    text("FPS\n" + "VECTORS\n" + "PARTICLES\n" + "CLUSTERCELLS\n" + "INTERACTION\n" + "LINES\n" + "DISTANCE\n" +
+      "TARGETS\n" + "PRESET\n" + "DEVICE\n\n" + year() + '/' + month() + '/' + day() + "\n\n" +
+      "David Herren", 20, height - 20);
 
     text(int(frameRate) + "\n" +
       vectors.size() + "\n" +
@@ -1388,11 +1323,7 @@ class Particle {
 
             PVector.sub(part.pos, pos, dist);
             float d = dist.mag();
-            float f = 1;
-
-            if (part_set_distrelated) {
-              f = strength(d, part_interaction_d_max, part_distrelated_potency);
-            }
+            float f = strength(d, part_interaction_d_max, 0.5);
 
             if (d < part_interaction_d_max && d > part_interaction_d_min && part_set_interaction) {
               force = dist.setMag(f * part_interaction_force);
@@ -1404,12 +1335,11 @@ class Particle {
               } else velocity.sub(force);
             }
 
-            if (d < part_interaction_draw_d_max &&
-              d > part_interaction_draw_d_min && part_set_interaction_draw) {
+            if (part_set_interaction_draw && d < part_interaction_draw_d_max && d > part_interaction_draw_d_min) {
               part.connected = true;
               connected = false;
 
-              if (!connected && a > part_saturation_scope_min && i <= part_lines_max) {
+              if (!connected && a > part_saturation_scope_min && i < part_lines_max) {
                 strokeWeight(part_lines_weight);
                 stroke(r, g, b, a);
                 line(pos.x, pos.y, part.pos.x, part.pos.y);
