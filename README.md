@@ -1,5 +1,6 @@
 # sphere
 
+Moving particles through a vector field.
 
-### Screenshot GUI
+### GUI
 ![capture](https://github.com/herdav/sphere/blob/master/screenshot.jpg)
