@@ -1,4 +1,4 @@
-/*  SPHERE --------------------------------------------------------------------------------------------------------
+/*  SPHERE 2 ------------------------------------------------------------------------------------------------------
     Created 2018 by David Herren.                                                                                 /
     https://davidherren.ch                                                                                        /
     https://github.com/herdav/sphere                                                                              /
@@ -126,6 +126,7 @@ boolean record_pdf = false;
 boolean background_display = false;
 boolean targt_display = false;
 boolean load_preset_0, load_preset_1, load_preset_2, load_preset_3;
+boolean load_preset_exists = true;
 boolean move_target = false, move_particles = false;
 int load_preset_last = 0;
 int background_color = 0;
@@ -185,7 +186,10 @@ void draw() {
   cluster();
   particles();
   data();
-  endRecord();
+  if (record_pdf) {
+    endRecord();
+    record_pdf = false;
+  }
   pointer(pointer_control);
 }
 
@@ -209,10 +213,10 @@ void serialEvent(Serial stream_port) {
     if (stream_data_angle_u >= PI / 2 && stream_data_angle_u < PI) {
       stream_data_angle_rot = PI - stream_data_angle_u;
     }
-    if (stream_data_angle_u >= PI && stream_data_angle_u < 2 / 3 * PI) {
+    if (stream_data_angle_u >= PI && stream_data_angle_u < 3 * PI / 2) {
       stream_data_angle_rot = stream_data_angle_u - PI;
     }
-    if (stream_data_angle_u >= 2 / 3 * PI && stream_data_angle_u < 2 * PI) {
+    if (stream_data_angle_u >= 3 * PI / 2 && stream_data_angle_u < 2 * PI) {
       stream_data_angle_rot = 2 * PI - stream_data_angle_u;
     }
 
@@ -467,11 +471,11 @@ void gui() {
     cp5_color.getCaptionLabel().align(CENTER, CENTER);
 
     cp5.addColorWheel("color_a", 0, 10, cp5_l2).setRGB(color(255, 0, 0))
-      .setCaptionLabel("LEFT").setGroup(cp5_color);
-    cp5.addColorWheel("color_b", cp5_l2 + 10, 10, cp5_l2).setRGB(color(0, 255, 0))
-      .setCaptionLabel("RIGHT").setGroup(cp5_color);
-    cp5.addColorWheel("color_c", cp5_y = 2 * cp5_l2 + 20, 10, cp5_l2).setRGB(color(0, 0, 255))
       .setCaptionLabel("TOP").setGroup(cp5_color);
+    cp5.addColorWheel("color_b", cp5_l2 + 10, 10, cp5_l2).setRGB(color(0, 255, 0))
+      .setCaptionLabel("MIDDLE").setGroup(cp5_color);
+    cp5.addColorWheel("color_c", cp5_y = 2 * cp5_l2 + 20, 10, cp5_l2).setRGB(color(0, 0, 255))
+      .setCaptionLabel("BOTTOM").setGroup(cp5_color);
 
     cp5.addToggle("background_display").setPosition(0, cp5_l2 = cp5_l2 + 50).setSize(cp5_l0, cp5_h)
       .setCaptionLabel("set").setGroup(cp5_color).getCaptionLabel().align(CENTER, CENTER);
@@ -522,14 +526,8 @@ void controlEvent(ControlEvent ce) {
 }
 
 void control() {
-  // hide gui
-  if (keyPressed && key == 'q') {
-    controls_show = false;
-    cp5.hide();
-  }
-
   // show gui
-  if (keyPressed && key == 'w' || !controls_show && mouseX < 100) {
+  if (!controls_show && mouseX < 100) {
     controls_show = true;
     cp5.show();
   }
@@ -539,40 +537,69 @@ void control() {
     noCursor();
   } else cursor();
 
-  // save and load presets
-  if (keyPressed) {
-    if (key == 'p') cp5.saveProperties(("\\presets\\preset.json"));
-    if (key == 'o') cp5.saveProperties(("\\presets\\preset_" + str(load_preset_last) + ".json"));
-  }
-  if (load_preset_0) {
-    cp5.loadProperties(("\\presets\\preset_0.json"));
-    load_preset_last = 0;
-    println(loaded(load_preset_last));;
-    load_preset_0 = false;
-  }
-  if (load_preset_1) {
-    cp5.loadProperties(("\\presets\\preset_1.json"));
-    load_preset_last = 1;
-    println(loaded(load_preset_last));
-    load_preset_1 = false;
-  }
-  if (load_preset_2) {
-    cp5.loadProperties(("\\presets\\preset_2.json"));
-    load_preset_last = 2;
-    println(loaded(load_preset_last));
-    load_preset_2 = false;
-  }
-  if (load_preset_3) {
-    cp5.loadProperties(("\\presets\\preset_3.json"));
-    load_preset_last = 3;
-    println(loaded(load_preset_last));
-    load_preset_3 = false;
-  }
+  // load presets
+  if (load_preset_0) loadPreset(0);
+  if (load_preset_1) loadPreset(1);
+  if (load_preset_2) loadPreset(2);
+  if (load_preset_3) loadPreset(3);
 }
 
-String loaded(int i) {
-  String t = "Preset " + str(i) + " is loaded.";
-  return t;
+void loadPreset(int i) {
+  load_preset_0 = load_preset_1 = load_preset_2 = load_preset_3 = false;
+  load_preset_last = i;
+
+  // a missing preset can be created with [o]
+  load_preset_exists = cp5.loadProperties(("\\presets\\preset_" + str(i) + ".json"));
+  if (load_preset_exists) {
+    println("Preset " + str(i) + " is loaded.");
+  } else println("Preset " + str(i) + " does not exist, press [o] to save the current setting.");
+}
+
+void keyPressed() {
+  // hide/show gui
+  if (key == 'q') {
+    controls_show = false;
+    cp5.hide();
+  }
+  if (key == 'w') {
+    controls_show = true;
+    cp5.show();
+  }
+
+  // save screen as pdf
+  if (key == 's') record_pdf = true;
+
+  // save current setting as preset, update current preset
+  if (key == 'p') cp5.saveProperties(("\\presets\\preset.json"));
+  if (key == 'o') {
+    load_preset_exists = cp5.saveProperties(("\\presets\\preset_" + str(load_preset_last) + ".json"));
+  }
+
+  // add/sub strength to the current target
+  if (key == 'u') targt_set_strength = constrain(targt_set_strength + 0.1, targt_strgth_min, targt_strgth_max);
+  if (key == 't') targt_set_strength = constrain(targt_set_strength - 0.1, targt_strgth_min, targt_strgth_max);
+
+  // move selected target with arrows
+  if (key == 'r') move_target = true;
+
+  for (int i = 0; i < targets.size(); i++) {
+    Target targt = targets.get(i);
+
+    // select target
+    if (key >= '1' && key <= '9') targt.select(key - '1' == i);
+
+    // change selected target
+    if (targt.sel) {
+      if (key == 'u') targt.strength(constrain(targt.strgth + 0.1, targt_strgth_min, targt_strgth_max));
+      if (key == 't') targt.strength(constrain(targt.strgth - 0.1, targt_strgth_min, targt_strgth_max));
+      if (key == 'z') targt.polarisation(!targt.pol);
+
+      if (i < 3) {
+        cp5.getController("targt_" + i + "_strgth").setValue(targt.strgth);
+        cp5.getController("targt_" + i + "_pol").setValue(int(targt.pol));
+      }
+    }
+  }
 }
 
 void mouseClicked() {
@@ -593,16 +620,6 @@ void targets() {
   if (keyPressed && key == 'z') {
     targt_set_polarisation = false;
   } else targt_set_polarisation = true;
-
-  // add strength to the current target
-  if (keyPressed && key == 'u' && targt_set_strength <= targt_strgth_max) {
-    targt_set_strength += 0.1;
-  }
-
-  // sub strength from the current target
-  if (keyPressed && key == 't' && targt_set_strength >= targt_strgth_min) {
-    targt_set_strength -= 0.1;
-  }
 
   // interlocking mouse<>device
   if (targt_pointer) {
@@ -715,57 +732,23 @@ void targets() {
     // add all strengths
     targt_get_strength += targt.strgth;
 
-    if (keyPressed) {
-      // select target
-      if (key >= 49) {
-        if (key == i + 49) {
-          targt.select(true);
-        } else if (key >= 49 && key <= 49 + targets.size()) {
-          targt.select(false);
-        }
+    // move selected target, continuous while arrow is held
+    if (keyPressed && key == CODED && move_target && targt.sel) {
+      if (keyCode == UP) {
+        targt.pos.y -= 1;
+        if (i < 3) cp5.getController("targt_" + i + "_y").setValue(targt.pos.y - field_border_top);
       }
-
-      // change selected target
-      if (targets.get(i).sel) {
-        if (key == 'u' && targets.get(i).strgth <= targt_strgth_max) {
-          targt.strgth += 0.1;
-          if (i < 3) cp5.getController("targt_" + i + "_strgth").setValue(targt.strgth);
-        }
-        if (key == 't' && targets.get(i).strgth >= targt_strgth_min) {
-          targt.strgth -= 0.1;
-          if (i < 3) cp5.getController("targt_" + i + "_strgth").setValue(targt.strgth);
-        }
-        if (key == 'z') {
-          if (targets.get(i).pol == false) {
-            targt.pol = true;
-            if (i < 3) cp5.getController("targt_" + i + "_pol").setValue(int(targt.pol));
-          } else if (targets.get(i).pol == true) {
-            targt.pol = false;
-            if (i < 3) cp5.getController("targt_" + i + "_pol").setValue(int(targt.pol));
-          }
-        }
-
-        // move target
-        if (key == 'r') move_target = true;
-        if (move_target) {
-          move_particles = false;
-          if (keyCode == UP) {
-            targt.pos.y -= 1;
-            if (i < 3) cp5.getController("targt_" + i + "_y").setValue(targt.pos.y - field_border_top);
-          }
-          if (keyCode == DOWN) {
-            targt.pos.y += 1;
-            if (i < 3) cp5.getController("targt_" + i + "_y").setValue(targt.pos.y - field_border_top);
-          }
-          if (keyCode == LEFT) {
-            targt.pos.x -= 1;
-            if (i < 3) cp5.getController("targt_" + i + "_x").setValue(targt.pos.x - field_border_left);
-          }
-          if (keyCode == RIGHT) {
-            targt.pos.x += 1;
-            if (i < 3) cp5.getController("targt_" + i + "_x").setValue(targt.pos.x - field_border_left);
-          }
-        }
+      if (keyCode == DOWN) {
+        targt.pos.y += 1;
+        if (i < 3) cp5.getController("targt_" + i + "_y").setValue(targt.pos.y - field_border_top);
+      }
+      if (keyCode == LEFT) {
+        targt.pos.x -= 1;
+        if (i < 3) cp5.getController("targt_" + i + "_x").setValue(targt.pos.x - field_border_left);
+      }
+      if (keyCode == RIGHT) {
+        targt.pos.x += 1;
+        if (i < 3) cp5.getController("targt_" + i + "_x").setValue(targt.pos.x - field_border_left);
       }
     }
   }
@@ -789,15 +772,12 @@ void particles() {
         part_birth_field_pos.x = field_border_left + j * part_streams_field_d;
         part_birth_field_pos.y = field_border_top + i * part_streams_field_d;
 
-        if (i > 0 && i < (part_streams_field + 1) / 3) {
-          particles.add(new Particle(part_birth_field_pos.x, part_birth_field_pos.y, part_lifespan, color_a));
-        }
-        if (i >= part_streams_field / 3 && i < (part_streams_field + 1) / 3 * 2) {
-          particles.add(new Particle(part_birth_field_pos.x, part_birth_field_pos.y, part_lifespan, color_b));
-        }
-        if (i >= part_streams_field / 3 * 2 && i < (part_streams_field + 1)) {
-          particles.add(new Particle(part_birth_field_pos.x, part_birth_field_pos.y, part_lifespan, color_c));
-        }
+        // split rows into three color bands: top, middle, bottom
+        int part_band = (i - 1) * 3 / part_streams_field;
+        color part_color = color_c;
+        if (part_band == 0) part_color = color_a;
+        if (part_band == 1) part_color = color_b;
+        particles.add(new Particle(part_birth_field_pos.x, part_birth_field_pos.y, part_lifespan, part_color));
       }
     }
   }
@@ -906,10 +886,11 @@ void field() {
 
   for (int i = 0; i < vctr_segment_n; i++) {
     Vectorfield vctr = vectors.get(i);
+    vctr.reset();
     for (int j = targets.size() - 1; j >= 0; j--) {
       vctr.target(targets.get(j).pos, targets.get(j).pol, targets.get(j).strgth);
-      vctr.magnitude(vctr_segment_delay);
     }
+    vctr.magnitude(vctr_segment_delay);
     vctr.colorize(theme);
     vctr.grid(false, false);
   }
@@ -938,15 +919,14 @@ void data() {
       decimalPlaces(part_lines_count, 1000) + "k\n" +
       "P" + int(part_interaction_d_max) + " / C" + int(cell_segment_i) + "\n" +
       targets.size() + "\n" +
-      load_preset_last + " is loaded\n" +
+      load_preset_last + (load_preset_exists ? " is loaded\n" : " is empty\n") +
       stream_port_name + "\n\n" +
       hour() + ':' + minute() + ':' + second() + "\n\nsphere.pde", 200, height - 20);
   }
 }
 
 void recording() {
-  record_pdf = false;
-  if (keyPressed && key == 's') record_pdf = true;
+  // one pdf per key press, see keyPressed()
   if (record_pdf) beginRecord(PDF, "\\export\\pdf\\frame-######.pdf");
   if (background_display) {
     fill(background_color);
@@ -1102,6 +1082,14 @@ class Vectorfield {
   Vectorfield(PVector orgin) {
     this.orgin.x = orgin.x;
     this.orgin.y = orgin.y;
+
+    // start without force, otherwise the field sweeps in from the top left corner
+    direct = this.orgin.copy();
+    result = this.orgin.copy();
+  }
+
+  void reset() {
+    direct = orgin.copy();
   }
 
   float strength(float d, float d_max, float n) {
@@ -1114,10 +1102,11 @@ class Vectorfield {
     float dist = orgin.dist(target);
     float f = strength(dist, vctr_dist_max, 0.5);
 
-    direct = PVector.sub(target, orgin);
-    direct.setMag(f * vctr_segment_r * vctr_dist_factor * factor);
-    if (!polarisation) direct.mult(-1);
-    direct.add(orgin);
+    // add the force of each target (superposition)
+    PVector pull = PVector.sub(target, orgin);
+    pull.setMag(f * vctr_segment_r * vctr_dist_factor * factor);
+    if (!polarisation) pull.mult(-1);
+    direct.add(pull);
   }
 
   void magnitude(float delay) {
@@ -1151,7 +1140,7 @@ class Vectorfield {
         noFill();
         stroke(255);
         line(orgin.x, orgin.y, result.x, result.y);
-        break;
+        return;
 
       case 2: // light dark
         scope = map(magnitude, 0, vctr_segment_d, 0, 255);
@@ -1179,8 +1168,8 @@ class Vectorfield {
         }
         break;
 
-      default:
-        noFill();
+      default: // nothing to fill, skip the rect
+        return;
     }
 
     noStroke();
@@ -1221,7 +1210,6 @@ class Particle {
 
   float lifespan, lifespan_start;
   int id, active_cell;
-  boolean connected = false;
   color argb;
   int a, r, g, b;
 
@@ -1244,7 +1232,7 @@ class Particle {
 
   void getVector() {
     // detect active vector
-    int active_vector = int((pos.y - field_border_top) / vctr_segment_d) * vctr_segment_ny +
+    int active_vector = int((pos.y - field_border_top) / vctr_segment_d) * vctr_segment_nx +
       int((pos.x - field_border_left) / vctr_segment_d);
 
     if (active_vector >= 0 && active_vector < vectors.size()) {
@@ -1260,7 +1248,7 @@ class Particle {
     int active_cell_y = int((pos.y - field_border_top) / cell_segment_d);
 
     // detect active cell
-    active_cell = active_cell_y * cell_segment_ny + active_cell_x;
+    active_cell = active_cell_y * cell_segment_nx + active_cell_x;
 
     if (active_cell >= 0 && active_cell < cells.size()) {
       Cluster cell = cells.get(active_cell);
@@ -1270,14 +1258,14 @@ class Particle {
         cell.list.append(id);
 
         // define surrounding cells
-        int active_cell_l = active_cell_y * cell_segment_ny + (active_cell_x - 1);
-        int active_cell_r = active_cell_y * cell_segment_ny + (active_cell_x + 1);
-        int active_cell_t = (active_cell_y - 1) * cell_segment_ny + active_cell_x;
-        int active_cell_b = (active_cell_y + 1) * cell_segment_ny + active_cell_x;
-        int active_cell_lt = (active_cell_y - 1) * cell_segment_ny + (active_cell_x - 1);
-        int active_cell_rt = (active_cell_y - 1) * cell_segment_ny + (active_cell_x + 1);
-        int active_cell_lb = (active_cell_y + 1) * cell_segment_ny + (active_cell_x - 1);
-        int active_cell_rb = (active_cell_y + 1) * cell_segment_ny + (active_cell_x + 1);
+        int active_cell_l = active_cell_y * cell_segment_nx + (active_cell_x - 1);
+        int active_cell_r = active_cell_y * cell_segment_nx + (active_cell_x + 1);
+        int active_cell_t = (active_cell_y - 1) * cell_segment_nx + active_cell_x;
+        int active_cell_b = (active_cell_y + 1) * cell_segment_nx + active_cell_x;
+        int active_cell_lt = (active_cell_y - 1) * cell_segment_nx + (active_cell_x - 1);
+        int active_cell_rt = (active_cell_y - 1) * cell_segment_nx + (active_cell_x + 1);
+        int active_cell_lb = (active_cell_y + 1) * cell_segment_nx + (active_cell_x - 1);
+        int active_cell_rb = (active_cell_y + 1) * cell_segment_nx + (active_cell_x + 1);
 
         if (active_cell_x > 0 && active_cell_x <= cell_segment_nx - 1 &&
           active_cell_y >= 0 && active_cell_y <= cell_segment_ny - 1) {
@@ -1320,8 +1308,6 @@ class Particle {
       PVector dist = new PVector();
       PVector force = new PVector();
 
-      float part_saturation_scope_min = cp5.getController("part_saturation_scope").getMin();
-
       if (active_cell >= 0 && active_cell < cells.size()) {
         Cluster cell = cells.get(active_cell);
 
@@ -1345,10 +1331,8 @@ class Particle {
             }
 
             if (part_set_interaction_draw && d < part_interaction_draw_d_max && d > part_interaction_draw_d_min) {
-              part.connected = true;
-              connected = false;
-
-              if (!connected && a > part_saturation_scope_min && i < part_lines_max) {
+              // only particles inside the saturation scope draw lines
+              if (a > part_saturation_min_limit && i < part_lines_max) {
                 strokeWeight(part_lines_weight);
                 stroke(r, g, b, a);
                 line(pos.x, pos.y, part.pos.x, part.pos.y);
@@ -1358,7 +1342,7 @@ class Particle {
           }
 
           if (part_set_limitter) {
-            float limitter = cell.list.size() / cell_max_entries;
+            float limitter = float(cell.list.size()) / cell_max_entries;
             lifespan -= limitter * cell_limitter_factor;
           }
         }
