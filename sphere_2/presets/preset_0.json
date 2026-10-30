@@ -32,7 +32,7 @@
     "max": 40,
     "value": 14
   },
-  "/part_interaction_range": {
+  "/part_interaction_scope": {
     "lowValue": 0,
     "highValue": 59.83935546875
   },
@@ -60,7 +60,7 @@
     "max": 2,
     "value": 0
   },
-  "/cell_set_max_entries": {
+  "/cell_max_entries": {
     "min": 2,
     "max": 200,
     "value": 100
@@ -70,16 +70,10 @@
     "max": 10,
     "value": 1
   },
-  "/part_birth_circle": {"value": 1},
   "/targt_0_x": {
     "min": 0,
     "max": 2000,
     "value": 1000
-  },
-  "/part_birth_circle_rot_speed": {
-    "min": 120,
-    "max": 1,
-    "value": 120
   },
   "/targt_0_y": {
     "min": 0,
@@ -96,7 +90,6 @@
     "max": 10,
     "value": 0.10000000149011612
   },
-  "/paricles_birth_center_pos_gui": {"value": 0},
   "/targt_1_strgth": {
     "min": 0.10000000149011612,
     "max": 10,
@@ -106,7 +99,6 @@
     "lowValue": 0,
     "highValue": 255
   },
-  "/part_set_distrelated": {"value": 0},
   "/part_set_interaction": {"value": 0},
   "/background_color": {
     "min": 0,
@@ -143,12 +135,7 @@
     "value": 10
   },
   "/targt_0_pol": {"value": 1},
-  "/part_distrelated_potency": {
-    "min": 0,
-    "max": 1,
-    "value": 0.5
-  },
-  "/part_limitter_factor": {
+  "/cell_limitter_factor": {
     "min": 0,
     "max": 100,
     "value": 1
@@ -157,25 +144,9 @@
   "/part_set_interaction_draw": {"value": 1},
   "/targt_1_pol": {"value": 0},
   "/targt_pointer": {"value": 0},
-  "/part_birth_circle_rot": {"value": 0},
   "/vctr_segment_delay": {
     "min": 0.009999999776482582,
     "max": 0.20000000298023224,
     "value": 0.029999999329447746
-  },
-  "/paricles_birth_center_pos_x": {
-    "min": 0,
-    "max": 3840,
-    "value": 2840
-  },
-  "/part_birth_circle_r": {
-    "min": 1,
-    "max": 1000,
-    "value": 900
-  },
-  "/paricles_birth_center_pos_y": {
-    "min": 0,
-    "max": 2160,
-    "value": 1080
   }
 }

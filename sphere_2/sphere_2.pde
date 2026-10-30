@@ -24,6 +24,9 @@
 import controlP5.*;
 import processing.pdf.*;
 import processing.serial.*;
+import processing.opengl.*;
+import java.util.Arrays;
+import java.util.stream.IntStream;
 
 // SERIAL COMMUNICATION -------------------------------------------------------------------------------------------
 boolean stream_port_on = false;
@@ -67,6 +70,9 @@ float vctr_segment_delay = 0.03;
 float vctr_dist_factor = 1;
 int vctr_segment_nx = 200, vctr_segment_ny;
 int vctr_segment_n, vctr_segment_n_max = 400;
+float[] vctr_state_last;
+boolean vctr_settled = false;
+PImage field_image;
 
 // CLUSTER --------------------------------------------------------------------------------------------------------
 Cluster cell;
@@ -117,6 +123,8 @@ boolean part_set_acceleration = false;
 boolean part_birth_field = true;
 boolean part_set = true;
 PVector part_birth_field_pos = new PVector();
+FloatList part_lines_xy = new FloatList();
+IntList part_lines_c = new IntList();
 
 // GUI & CONTROLS -------------------------------------------------------------------------------------------------
 ControlP5 cp5;
@@ -135,6 +143,8 @@ int field_height = 2000;
 int field_width = field_height;
 int field_border_left, field_border_top, field_border_bot;
 int textSize = 21;
+int data_interval = 15;
+PGraphics data_buffer;
 PVector field_center = new PVector();
 
 // ignore windows display zoom, use native screen resolution
@@ -549,10 +559,19 @@ void loadPreset(int i) {
   load_preset_last = i;
 
   // a missing preset can be created with [o]
-  load_preset_exists = cp5.loadProperties(("\\presets\\preset_" + str(i) + ".json"));
-  if (load_preset_exists) {
+  load_preset_exists = new File(sketchPath("presets/preset_" + str(i) + ".json")).exists();
+  if (!load_preset_exists) {
+    println("Preset " + str(i) + " does not exist, press [o] to save the current setting.");
+    return;
+  }
+
+  // keys of removed controllers throw inside controlp5 and would stop the sketch
+  try {
+    cp5.loadProperties(("\\presets\\preset_" + str(i) + ".json"));
     println("Preset " + str(i) + " is loaded.");
-  } else println("Preset " + str(i) + " does not exist, press [o] to save the current setting.");
+  } catch (Exception e) {
+    println("Preset " + str(i) + " could not be loaded completely: " + e);
+  }
 }
 
 void keyPressed() {
@@ -572,7 +591,8 @@ void keyPressed() {
   // save current setting as preset, update current preset
   if (key == 'p') cp5.saveProperties(("\\presets\\preset.json"));
   if (key == 'o') {
-    load_preset_exists = cp5.saveProperties(("\\presets\\preset_" + str(load_preset_last) + ".json"));
+    cp5.saveProperties(("\\presets\\preset_" + str(load_preset_last) + ".json"));
+    load_preset_exists = true;
   }
 
   // add/sub strength to the current target
@@ -782,8 +802,14 @@ void particles() {
     }
   }
 
-  // reset particle interaction lines count
+  // reset particle interaction lines
   part_lines_count = 0;
+  part_lines_xy.clear();
+  part_lines_c.clear();
+
+  // draw all particles as one shape, the pdf gets single rects
+  noStroke();
+  if (!record_pdf) beginShape(QUADS);
 
   // call particle class
   for (int i = 0; i < particles.size(); i++) {
@@ -791,7 +817,7 @@ void particles() {
     part.clear(part_clear);
     part.lifespan();
     part.getVector();
-    part.getCell(i);
+    if (part_interaction || cell_segment_display) part.getCell(i); // cells are only used by these
     part.addInteraction(part_interaction);
     part.addAcceleration();
     part.update();
@@ -799,15 +825,27 @@ void particles() {
     part.display(part_set);
   }
 
+  if (!record_pdf) endShape();
+
+  // draw all interaction lines as one shape
+  if (part_lines_c.size() > 0) {
+    strokeWeight(part_lines_weight);
+    beginShape(LINES);
+    for (int i = 0; i < part_lines_c.size(); i++) {
+      int c = part_lines_c.get(i);
+      stroke(c >> 16 & 0xFF, c >> 8 & 0xFF, c & 0xFF, c >>> 24);
+      vertex(part_lines_xy.get(4 * i), part_lines_xy.get(4 * i + 1));
+      vertex(part_lines_xy.get(4 * i + 2), part_lines_xy.get(4 * i + 3));
+    }
+    endShape();
+  }
+
   // calculate particle interactions
   cell_calculationload_max = int(sq(particles.size()));
   cell_calculationload = 100 * float(cell_calculationload_eff) / float(cell_calculationload_max);
 
-  // delete passed particles
-  for (int i = particles.size() - 1; i >= 0; i--) {
-    Particle part = particles.get(i);
-    if (part.lifespan <= 0) particles.remove(i);
-  }
+  // delete passed particles in one pass
+  particles.removeIf(p -> p.lifespan <= 0);
 
   if (part_interaction) {
     cp5.getController("part_streams").setMax(part_streams_max_2);
@@ -819,8 +857,8 @@ void cluster() {
   cell_segment_n = cell_segment_nx * cell_segment_ny;
 
   if (cell_segment_n != cells.size()) {
-    for (int i = particles.size() - 1; i >= 0; i--) particles.remove(i);
-    for (int i = cells.size() - 1; i >= 0; i--) cells.remove(i);
+    particles.clear();
+    cells.clear();
 
     if (field_height % cell_segment_ny > 0) {
       cell_segment_nx++;
@@ -861,8 +899,8 @@ void field() {
   vctr_segment_n = vctr_segment_nx * vctr_segment_ny;
 
   if (vctr_segment_n != vectors.size()) {
-    for (int i = particles.size() - 1; i >= 0; i--) particles.remove(i);
-    for (int i = vectors.size() - 1; i >= 0; i--) vectors.remove(i);
+    particles.clear();
+    vectors.clear();
 
     if (field_height % vctr_segment_ny > 0) {
       vctr_segment_nx++;
@@ -882,34 +920,125 @@ void field() {
         vectors.add(new Vectorfield(vctr_segment_pos));
       }
     }
+
+    // one pixel per segment, scaled up without smoothing
+    field_image = createImage(vctr_segment_nx, vctr_segment_ny, RGB);
+    ((PGraphicsOpenGL) g).getTexture(field_image).usingMipmaps(false, 2); // 2 = Texture.POINT, not public
   }
 
-  for (int i = 0; i < vctr_segment_n; i++) {
-    Vectorfield vctr = vectors.get(i);
-    vctr.reset();
-    for (int j = targets.size() - 1; j >= 0; j--) {
-      vctr.target(targets.get(j).pos, targets.get(j).pol, targets.get(j).strgth);
-    }
-    vctr.magnitude(vctr_segment_delay);
-    vctr.colorize(theme);
-    vctr.grid(false, false);
+  // calculate only if something has changed or the field is still moving
+  float[] vctr_state = fieldState();
+  if (!vctr_settled || !Arrays.equals(vctr_state, vctr_state_last)) {
+    vctr_state_last = vctr_state;
+
+    // segments are independent, calculate them on all cores
+    double vctr_offset_max = IntStream.range(0, vctr_segment_n).parallel().mapToDouble(i -> {
+      Vectorfield vctr = vectors.get(i);
+      vctr.reset();
+      for (int j = targets.size() - 1; j >= 0; j--) {
+        vctr.target(targets.get(j).pos, targets.get(j).pol, targets.get(j).strgth);
+      }
+      float offset = vctr.magnitude(vctr_segment_delay);
+      if (theme >= 2) field_image.pixels[i] = vctr.colorize(theme);
+      return offset;
+    }).max().orElse(0);
+
+    vctr_settled = vctr_offset_max < 0.01;
+    if (theme >= 2) field_image.updatePixels();
   }
+
+  // vector field as one shape
+  if (theme == 1) {
+    noFill();
+    stroke(255);
+    strokeWeight(1);
+    beginShape(LINES);
+    for (int i = 0; i < vctr_segment_n; i++) {
+      Vectorfield vctr = vectors.get(i);
+      vertex(vctr.orgin.x, vctr.orgin.y);
+      vertex(vctr.result.x, vctr.result.y);
+    }
+    endShape();
+  }
+
+  // light dark, heat map, field lines
+  if (theme >= 2) {
+    if (record_pdf) {
+      // vector rects for the pdf
+      noStroke();
+      rectMode(CENTER);
+      for (int i = 0; i < vctr_segment_n; i++) {
+        Vectorfield vctr = vectors.get(i);
+        fill(field_image.pixels[i]);
+        rect(vctr.orgin.x, vctr.orgin.y, vctr_segment_d, vctr_segment_d);
+      }
+    } else image(field_image, field_border_left, field_border_top, field_width, field_height);
+  }
+}
+
+float[] fieldState() {
+  // everything the field calculation depends on
+  float[] s = new float[5 + 4 * targets.size()];
+  s[0] = vctr_segment_n;
+  s[1] = vectors.size();
+  s[2] = theme;
+  s[3] = vctr_dist_factor;
+  s[4] = targets.size();
+  for (int i = 0; i < targets.size(); i++) {
+    Target targt = targets.get(i);
+    s[5 + 4 * i] = targt.pos.x;
+    s[6 + 4 * i] = targt.pos.y;
+    s[7 + 4 * i] = targt.pol ? 1 : 0;
+    s[8 + 4 * i] = targt.strgth;
+  }
+  return s;
+}
+
+color rgb(float r, float g, float b) {
+  // thread safe replacement for color(), used by the parallel field calculation
+  return 0xFF000000 | int(constrain(r, 0, 255)) << 16 | int(constrain(g, 0, 255)) << 8 | int(constrain(b, 0, 255));
 }
 
 void data() {
   if (controls_show) {
-    noStroke();
-    fill(0);
-    rectMode(CORNER);
-    rect(0, 0, field_border_left, height);
-    textSize(textSize);
-    fill(255);
-    textAlign(LEFT, BOTTOM);
-    text("FPS\n" + "VECTORS\n" + "PARTICLES\n" + "CLUSTERCELLS\n" + "INTERACTION\n" + "LINES\n" + "DISTANCE\n" +
-      "TARGETS\n" + "PRESET\n" + "DEVICE\n\n" + year() + '/' + month() + '/' + day() + "\n\n" +
-      "David Herren", 20, height - 20);
+    if (record_pdf) {
+      // vector text for the pdf
+      String[] t = dataText();
+      noStroke();
+      fill(0);
+      rectMode(CORNER);
+      rect(0, 0, field_border_left, height);
+      textSize(textSize);
+      fill(255);
+      textAlign(LEFT, BOTTOM);
+      text(t[0], 20, height - 20);
+      text(t[1], 200, height - 20);
+    } else {
+      // text rendering is expensive, refresh the buffer only a few times per second
+      if (data_buffer == null || frameCount % data_interval == 0) {
+        if (data_buffer == null) data_buffer = createGraphics(field_border_left, height, P2D);
+        String[] t = dataText();
+        data_buffer.beginDraw();
+        data_buffer.background(0);
+        data_buffer.textSize(textSize);
+        data_buffer.fill(255);
+        data_buffer.textAlign(LEFT, BOTTOM);
+        data_buffer.text(t[0], 20, height - 20);
+        data_buffer.text(t[1], 200, height - 20);
+        data_buffer.endDraw();
+      }
+      image(data_buffer, 0, 0);
+    }
+  }
+}
 
-    text(int(frameRate) + "\n" +
+String[] dataText() {
+  return new String[] {
+    "FPS\n" + "VECTORS\n" + "PARTICLES\n" + "CLUSTERCELLS\n" + "INTERACTION\n" + "LINES\n" + "DISTANCE\n" +
+      "TARGETS\n" + "PRESET\n" + "DEVICE\n\n" + year() + '/' + month() + '/' + day() + "\n\n" +
+      "David Herren",
+
+    int(frameRate) + "\n" +
       vectors.size() + "\n" +
       decimalPlaces(particles.size(), 1000) + "k\n" +
       cells.size() + "\n" +
@@ -921,8 +1050,8 @@ void data() {
       targets.size() + "\n" +
       load_preset_last + (load_preset_exists ? " is loaded\n" : " is empty\n") +
       stream_port_name + "\n\n" +
-      hour() + ':' + minute() + ':' + second() + "\n\nsphere.pde", 200, height - 20);
-  }
+      hour() + ':' + minute() + ':' + second() + "\n\nsphere.pde"
+  };
 }
 
 void recording() {
@@ -1084,38 +1213,39 @@ class Vectorfield {
     this.orgin.y = orgin.y;
 
     // start without force, otherwise the field sweeps in from the top left corner
-    direct = this.orgin.copy();
-    result = this.orgin.copy();
+    direct.set(this.orgin);
+    result.set(this.orgin);
   }
 
   void reset() {
-    direct = orgin.copy();
+    direct.set(orgin);
   }
 
-  float strength(float d, float d_max, float n) {
-    float s = d / d_max;
-    float f = 1 - pow(s, n);
-    return f;
+  float strength(float d, float d_max) {
+    return 1 - sqrt(d / d_max);
   }
 
   void target(PVector target, boolean polarisation, float factor) {
-    float dist = orgin.dist(target);
-    float f = strength(dist, vctr_dist_max, 0.5);
-
-    // add the force of each target (superposition)
-    PVector pull = PVector.sub(target, orgin);
-    pull.setMag(f * vctr_segment_r * vctr_dist_factor * factor);
-    if (!polarisation) pull.mult(-1);
-    direct.add(pull);
+    // add the force of each target (superposition), no new objects per frame
+    float dx = target.x - orgin.x;
+    float dy = target.y - orgin.y;
+    float dist = sqrt(dx * dx + dy * dy);
+    if (dist > 0) {
+      float m = strength(dist, vctr_dist_max) * vctr_segment_r * vctr_dist_factor * factor / dist;
+      if (!polarisation) m = -m;
+      direct.x += dx * m;
+      direct.y += dy * m;
+    }
   }
 
-  void magnitude(float delay) {
-    PVector offset = new PVector();
-    PVector.sub(direct, result, offset);
-    magnitude = offset.mag();
-    offset.mult(delay);
-    result.add(offset);
-    force = PVector.sub(result, orgin);
+  float magnitude(float delay) {
+    float dx = direct.x - result.x;
+    float dy = direct.y - result.y;
+    magnitude = sqrt(dx * dx + dy * dy);
+    result.x += dx * delay;
+    result.y += dy * delay;
+    force.set(result.x - orgin.x, result.y - orgin.y);
+    return magnitude;
   }
 
   void grid(boolean ellipse, boolean rect) {
@@ -1127,54 +1257,37 @@ class Vectorfield {
     if (rect) rect(orgin.x, orgin.y, vctr_segment_d, vctr_segment_d);
   }
 
-  void colorize(int input) {
+  color colorize(int input) {
+    // color of the segment for themes 2-4, drawn as pixel of field_image
+    float m = magnitude / (vctr_dist_factor * targt_get_strength);
     float scope;
     int n, r;
 
-    magnitude /= vctr_dist_factor * targt_get_strength;
-
-    strokeWeight(1);
-
     switch (input) {
-      case 1: // vector field
-        noFill();
-        stroke(255);
-        line(orgin.x, orgin.y, result.x, result.y);
-        return;
-
       case 2: // light dark
-        scope = map(magnitude, 0, vctr_segment_d, 0, 255);
-        fill(scope);
-        break;
+        scope = map(m, 0, vctr_segment_d, 0, 255);
+        return rgb(scope, scope, scope);
 
       case 3: // heat map
         n = 11;
         r = 255;
-        scope = map(magnitude, 0, vctr_segment_d, 0, n * r);
-        if (scope >= 0 * r) fill(0, 0, scope); // blue 
-        if (scope >= 1 * r) fill(0, scope - 1 * r, 255); // cyan
-        if (scope >= 2 * r) fill(0, 255, 3 * r - scope); // green
-        if (scope >= 3 * r) fill(scope - 3 * r, 255, 0); // yellow
-        if (scope >= 4 * r) fill(255, 5 * r - scope, 0); // red
-        if (scope >= 5 * r) fill(6 * r - scope, 0, 0); // dark red
-        break;
+        scope = map(m, 0, vctr_segment_d, 0, n * r);
+        if (scope >= 5 * r) return rgb(6 * r - scope, 0, 0); // dark red
+        if (scope >= 4 * r) return rgb(255, 5 * r - scope, 0); // red
+        if (scope >= 3 * r) return rgb(scope - 3 * r, 255, 0); // yellow
+        if (scope >= 2 * r) return rgb(0, 255, 3 * r - scope); // green
+        if (scope >= 1 * r) return rgb(0, scope - 1 * r, 255); // cyan
+        return rgb(0, 0, scope); // blue
 
-      case 4: // field lines
+      case 4: // field lines, alternating bands of width 2
         n = 100;
-        for (int i = 0; i <= n; i++) {
-          scope = map(magnitude, 0, vctr_segment_d, 0, n);
-          if (scope >= i * 2 && i % 2 == 0) fill(150);
-          if (scope >= i * 2 && i % 2 > 0) fill(50);
-        }
-        break;
+        scope = map(m, 0, vctr_segment_d, 0, n);
+        if (min(n, int(scope / 2)) % 2 == 0) return rgb(150, 150, 150);
+        return rgb(50, 50, 50);
 
-      default: // nothing to fill, skip the rect
-        return;
+      default:
+        return rgb(0, 0, 0);
     }
-
-    noStroke();
-    rectMode(CENTER);
-    rect(orgin.x, orgin.y, vctr_segment_d, vctr_segment_d);
   }
 }
 
@@ -1224,10 +1337,8 @@ class Particle {
     pos_before = pos.copy();
   }
 
-  float strength(float d, float d_max, float n) {
-    float s = d / d_max;
-    float f = 1 - pow(s, n);
-    return f;
+  float strength(float d, float d_max) {
+    return 1 - sqrt(d / d_max);
   }
 
   void getVector() {
@@ -1305,9 +1416,6 @@ class Particle {
 
   void addInteraction(boolean set) {
     if (set) {
-      PVector dist = new PVector();
-      PVector force = new PVector();
-
       if (active_cell >= 0 && active_cell < cells.size()) {
         Cluster cell = cells.get(active_cell);
 
@@ -1316,26 +1424,29 @@ class Particle {
           for (int i = 0; i < cell.list.size(); i++) {
             Particle part = particles.get(cell.list.get(i));
 
-            PVector.sub(part.pos, pos, dist);
-            float d = dist.mag();
-            float f = strength(d, part_interaction_d_max, 0.5);
+            float dx = part.pos.x - pos.x;
+            float dy = part.pos.y - pos.y;
+            float d = sqrt(dx * dx + dy * dy);
 
             if (d < part_interaction_d_max && d > part_interaction_d_min && part_set_interaction) {
-              force = dist.setMag(f * part_interaction_force);
+              // force along the distance, d > 0 is given by d > d_min >= 0
+              float m = strength(d, part_interaction_d_max) * part_interaction_force / d;
               float d_delta = part_interaction_d_max - part_interaction_d_min;
               float d_border = d_delta / 100 * part_interaction_border + part_interaction_d_min;
 
               if (d > d_border) {
-                velocity.add(force);
-              } else velocity.sub(force);
+                velocity.add(dx * m, dy * m);
+              } else velocity.sub(dx * m, dy * m);
             }
 
             if (part_set_interaction_draw && d < part_interaction_draw_d_max && d > part_interaction_draw_d_min) {
-              // only particles inside the saturation scope draw lines
+              // only particles inside the saturation scope draw lines, drawn as one shape in particles()
               if (a > part_saturation_min_limit && i < part_lines_max) {
-                strokeWeight(part_lines_weight);
-                stroke(r, g, b, a);
-                line(pos.x, pos.y, part.pos.x, part.pos.y);
+                part_lines_xy.append(pos.x);
+                part_lines_xy.append(pos.y);
+                part_lines_xy.append(part.pos.x);
+                part_lines_xy.append(part.pos.y);
+                part_lines_c.append(a << 24 | r << 16 | g << 8 | b);
                 part_lines_count++;
               }
             }
@@ -1352,11 +1463,9 @@ class Particle {
 
   void addAcceleration() {
     if (part_set_acceleration) {
-      PVector aclr = new PVector();
-      PVector.sub(pos, pos_before, aclr);
-      float f = strength(lifespan, lifespan_start, 0.5);
-      aclr.mult(f * part_acceleration_factor);
-      pos.add(aclr);
+      float f = strength(lifespan, lifespan_start) * part_acceleration_factor;
+      pos.x += (pos.x - pos_before.x) * f;
+      pos.y += (pos.y - pos_before.y) * f;
     }
   }
 
@@ -1370,7 +1479,7 @@ class Particle {
 
   void update() {
     velocity.setMag(part_speed);
-    pos_before = pos.copy();
+    pos_before.set(pos);
     pos.add(velocity);
   }
 
@@ -1397,10 +1506,18 @@ class Particle {
 
   void display(boolean set) {
     if (set) {
-      noStroke();
       fill(r, g, b, a);
-      rectMode(CENTER);
-      rect(pos.x, pos.y, part_size, part_size);
+      if (record_pdf) {
+        rectMode(CENTER);
+        rect(pos.x, pos.y, part_size, part_size);
+      } else {
+        // quad of the shape started in particles()
+        float s = part_size / 2.0;
+        vertex(pos.x - s, pos.y - s);
+        vertex(pos.x + s, pos.y - s);
+        vertex(pos.x + s, pos.y + s);
+        vertex(pos.x - s, pos.y + s);
+      }
     }
   }
 }
